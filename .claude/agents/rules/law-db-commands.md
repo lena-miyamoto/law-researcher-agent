@@ -91,3 +91,41 @@ Query local `law-db/` archive. Exactly one operation flag required (mutually exc
 | `--search-topic` | str | — | `--search-keyword`, `--search-searches` | Restrict search to a specific topic |
 | `--show-abstract` | flag | off | `--read-metadata` | Include abstract text in output |
 | `--summary` | flag | off | `--search-keyword` | Compact output (identifiers + titles only) |
+
+---
+
+## `uv run law-db-contract` — Contract and AGB Archival
+
+Archive insurance contracts, AGB, and templates into `law-db/contracts/`.
+Stores PDF originals alongside automatically extracted Markdown for full-text search.
+Requires `pdftotext` (poppler-utils) on PATH for PDF→Markdown extraction.
+
+**Required parameters:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `--type` | choice | `contract`, `agb`, or `template` |
+| `--title` | str | Human-readable title for the document |
+| `--file` xor `--url` | — | One of `--file <path>` or `--url <url>` (not both) |
+
+**Optional parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `--topic` | str | `uncategorized` | Topic for grouping (e.g. `versicherung`, `haushalt`) |
+| `--topic-slug` | str | — | Explicit kebab-case slug; overrides `--topic` |
+| `--parties` | str | — | Comma-separated list of parties |
+| `--contract-date` | str | — | Contract date in YYYY-MM-DD format |
+| `--status` | choice | — | `template`, `pending`, `active`, or `terminated` |
+| `--insurance-type` | choice | — | e.g. `haushalt`, `rechtsschutz`, `kfz`, `private-krankenversicherung` |
+| `--language` | str | `de` | Language code for the document |
+| `--source-url` | str | — | Original source URL for reference |
+| `--notes` | str | — | Free-text notes |
+| `--identifier-slug` | str | auto | Explicit kebab-case folder slug; auto-generated from title |
+| `--law-db` | str | `law-db` | Target law-db directory |
+
+**Directory layout:** `contracts/<topic>/<identifier-slug>/` containing:
+
+- `metadata.json` — structured metadata (type, title, parties, dates, has_pdf, has_markdown)
+- `source.pdf` — original PDF (if provided)
+- `source.md` — extracted Markdown (if extraction succeeded)

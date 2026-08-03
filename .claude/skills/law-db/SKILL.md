@@ -78,6 +78,8 @@ querying, or analyzing documents from the archive:
 | Legal text database: Austrian law (jusline.at)      | `.claude/agents/rules/jusline-at-guidelines.md` |
 | Legal text database: Austrian law — official (RIS)  | `.claude/agents/rules/ris-guidelines.md`    |
 | Legal text database: EU law (EUR-Lex)               | `.claude/agents/rules/eur-lex-guidelines.md` |
+| Insurance contract analysis framework              | `.claude/agents/rules/contract-analysis-framework.md`         |
+| Insurance and EU regulatory reference              | `.claude/agents/rules/insurance-at-eu-guidelines.md`          |
 | Script development conventions                      | `.claude/scripts/DEVELOPER.md`                                |
 | Overall integration and CLI contract                | `CLAUDE.md`                                                   |
 
@@ -86,6 +88,9 @@ querying, or analyzing documents from the archive:
 - Always include `--topic <name>` on archival commands (human-readable name, e.g. `datenschutz`,
   `mietrecht`). The tool derives the kebab-case slug automatically.
 - Use `--topic-slug` only when automatic derivation fails.
+- For contracts and AGB: use `uv run law-db-contract --type contract|agb|template --file|--url ...`.
+  PDFs are stored alongside auto-extracted Markdown (requires `pdftotext` on PATH). See
+  `.claude/agents/rules/law-db-commands.md` for the full parameter reference.
 - Integrity check runs automatically after every archival operation.
   Errors block completion (exit code 1) and must be fixed immediately.
 

@@ -71,6 +71,12 @@ The skill owns the black-box rule, forbidden patterns, bootstrap, archival conve
 command reference, and during-session usage rules.
 Invoke via `Skill: "law-db"` or follow the skill file directly.
 
+**Do not duplicate law-db usage instructions outside the skill.** The skill is the single
+source of truth for all law-db commands, parameters, and workflows. README, agent files, and
+other instruction files must only point to the skill — never replicate its command reference,
+examples, or parameter tables. Duplication creates divergence: the skill gets updated, stale
+copies remain elsewhere, and agents pick up conflicting instructions.
+
 ### Canonical Commands
 
 See `.claude/agents/rules/law-db-commands.md` for the complete `uv run` parameter reference

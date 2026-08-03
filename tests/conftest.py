@@ -20,4 +20,5 @@ def pytest_configure():
     _load_module("law_db", "law-db.py")
     _load_module("law_db_lookup", "law-db-lookup.py")
     _load_module("law_db_query", "law-db-query.py")
+    _load_module("law_db_contract", "law-db-contract.py")
     _load_module("utils", "utils.py")

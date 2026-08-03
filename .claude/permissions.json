@@ -42,6 +42,7 @@
       "^uv run law-db-lookup(\\s|$)",
       "^uv run law-db-query(\\s|$)",
       "^uv run law-db-integrity-check(\\s|$)",
+      "^uv run law-db-contract(\\s|$)",
       "^uv run lint-md(\\s|$)",
       "^uv run test(\\s|$)",
       "^python3? -m json\\.tool(\\s|$)",

@@ -41,6 +41,10 @@ def law_db_integrity_check():
     return _load_script("law_db_integrity_check", "law-db-integrity-check.py").main()
 
 
+def law_db_contract():
+    return _load_script("law_db_contract", "law-db-contract.py").main()
+
+
 def lint_md(args=None):
     """Run pymarkdownlnt on repo markdown files.
 

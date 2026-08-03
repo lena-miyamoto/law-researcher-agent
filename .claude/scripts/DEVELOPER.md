@@ -30,6 +30,9 @@ Required top-level categories:
 - `fulltext/<topic-slug>/<identifier>-<title-slug>/` — `source.md` with YAML frontmatter + `metadata.json`.
 - `guidelines/<topic-slug>/<title-slug>/` — `source.<lang>.md` with YAML frontmatter.
 - `web/<topic-slug>/` — archived web pages or reproducible search definitions.
+- `contracts/<topic-slug>/<identifier-slug>/` — `metadata.json` + optional `source.pdf` + optional `source.md`.
+  Supports `contract`, `agb`, and `template` types. PDF originals stored alongside extracted Markdown
+  for full-text search. Never split across dirs.
 
 ## Conventions
 

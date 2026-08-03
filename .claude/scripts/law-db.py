@@ -53,7 +53,7 @@ def save_text(path, content):
 
 
 def ensure_law_db_structure(law_db):
-    for name in ("searches", "documents", "fulltext", "guidelines", "web"):
+    for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts"):
         (law_db / name).mkdir(parents=True, exist_ok=True)
 
 
@@ -123,20 +123,21 @@ WEB_SOURCE_SPECS = {
 def load_existing_index_entries(index_path):
     """Parse existing index.json to preserve user-edited purposes and metadata."""
     if not index_path.is_file():
-        return {}, {}, {}, {}, {}
+        return {}, {}, {}, {}, {}, {}
 
     try:
         data = json.loads(index_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        return {}, {}, {}, {}, {}
+        return {}, {}, {}, {}, {}, {}
 
     search_entries = {entry["path"]: {k: v for k, v in entry.items() if k != "path"} for entry in data.get("searches", [])}
     document_entries = {entry["path"]: {k: v for k, v in entry.items() if k != "path"} for entry in data.get("documents", [])}
     fulltext_entries = {entry["path"]: {k: v for k, v in entry.items() if k != "path"} for entry in data.get("fulltext", [])}
     guideline_entries = {entry["path"]: {k: v for k, v in entry.items() if k != "path"} for entry in data.get("guidelines", [])}
     web_entries = {entry["path"]: {k: v for k, v in entry.items() if k != "path"} for entry in data.get("web", [])}
+    contract_entries = {entry["path"]: {k: v for k, v in entry.items() if k != "path"} for entry in data.get("contracts", [])}
 
-    return search_entries, document_entries, fulltext_entries, guideline_entries, web_entries
+    return search_entries, document_entries, fulltext_entries, guideline_entries, web_entries, contract_entries
 
 
 def collect_index_data(law_db):
@@ -220,13 +221,29 @@ def collect_index_data(law_db):
                 "accessed": today,
             })
 
-    return searches, documents, fulltexts, guidelines, web_sources
+    # Contracts
+    contracts = []
+    contracts_dir = law_db / "contracts"
+    if contracts_dir.is_dir():
+        for meta_path in sorted(contracts_dir.rglob("metadata.json")):
+            contract_dir = meta_path.parent
+            rel_dir = str(contract_dir.relative_to(law_db))
+            contracts.append({
+                "path": rel_dir,
+                "identifier": "Review and refine identifier.",
+                "type": "contract",
+                "title": "Review and refine title.",
+                "purpose": "Review and refine purpose.",
+                "accessed": today,
+            })
+
+    return searches, documents, fulltexts, guidelines, web_sources, contracts
 
 
-def sync_index(law_db, search_updates=None, document_updates=None, fulltext_updates=None, guideline_updates=None, web_updates=None):
+def sync_index(law_db, search_updates=None, document_updates=None, fulltext_updates=None, guideline_updates=None, web_updates=None, contract_updates=None):
     """Generate index.json from filesystem, merging in user-provided metadata."""
     index_path = law_db / "index.json"
-    existing_searches, existing_documents, existing_fulltexts, existing_guidelines, existing_web = load_existing_index_entries(index_path)
+    existing_searches, existing_documents, existing_fulltexts, existing_guidelines, existing_web, existing_contracts = load_existing_index_entries(index_path)
 
     if search_updates:
         existing_searches.update(search_updates)
@@ -238,8 +255,10 @@ def sync_index(law_db, search_updates=None, document_updates=None, fulltext_upda
         existing_guidelines.update(guideline_updates)
     if web_updates:
         existing_web.update(web_updates)
+    if contract_updates:
+        existing_contracts.update(contract_updates)
 
-    fs_searches, fs_documents, fs_fulltexts, fs_guidelines, fs_web = collect_index_data(law_db)
+    fs_searches, fs_documents, fs_fulltexts, fs_guidelines, fs_web, fs_contracts = collect_index_data(law_db)
 
     def _merge(fs_list, existing_dict):
         result = []
@@ -256,6 +275,7 @@ def sync_index(law_db, search_updates=None, document_updates=None, fulltext_upda
         "fulltext": _merge(fs_fulltexts, existing_fulltexts),
         "guidelines": _merge(fs_guidelines, existing_guidelines),
         "web": _merge(fs_web, existing_web),
+        "contracts": _merge(fs_contracts, existing_contracts),
     }
     index_path.write_text(json.dumps(index_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 

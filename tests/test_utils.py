@@ -301,14 +301,14 @@ class TestIntegrityConstants:
 
 class TestCheckRequiredDirs:
     def test_all_present(self, tmp_path):
-        for name in ("searches", "documents", "fulltext", "guidelines", "web"):
+        for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts"):
             (tmp_path / name).mkdir()
         findings = []
         utils.check_required_dirs(tmp_path, findings)
         assert findings == []
 
     def test_one_missing(self, tmp_path):
-        for name in ("searches", "documents", "fulltext", "guidelines"):
+        for name in ("searches", "documents", "fulltext", "guidelines", "contracts"):
             (tmp_path / name).mkdir()
         findings = []
         utils.check_required_dirs(tmp_path, findings)
@@ -319,7 +319,7 @@ class TestCheckRequiredDirs:
     def test_all_missing(self, tmp_path):
         findings = []
         utils.check_required_dirs(tmp_path, findings)
-        assert len(findings) == 5
+        assert len(findings) == 6
 
 
 class TestCheckEmptyFiles:
@@ -367,6 +367,7 @@ class TestCheckIndexValid:
             "fulltext": [],
             "guidelines": [],
             "web": [],
+            "contracts": [],
         }
         (tmp_path / "index.json").write_text(json.dumps(index))
         findings = []
@@ -392,7 +393,7 @@ class TestCheckIndexValid:
     def test_extra_keys_warning(self, tmp_path):
         index = {
             "searches": [], "documents": [], "fulltext": [],
-            "guidelines": [], "web": [], "extra_category": [],
+            "guidelines": [], "web": [], "contracts": [], "extra_category": [],
         }
         (tmp_path / "index.json").write_text(json.dumps(index))
         findings = []
@@ -410,6 +411,7 @@ class TestCheckIndexValid:
             "fulltext": [],
             "guidelines": [],
             "web": [],
+            "contracts": [],
         }
         (tmp_path / "index.json").write_text(json.dumps(index))
         findings = []
@@ -432,7 +434,7 @@ class TestCheckIndexCrossref:
         (tmp_path / "web").mkdir()
         data = {
             "searches": [], "documents": [], "fulltext": [],
-            "guidelines": [], "web": [],
+            "guidelines": [], "web": [], "contracts": [],
         }
         findings = []
         utils.check_index_crossref(tmp_path, data, findings)
@@ -462,7 +464,7 @@ class TestCheckIndexCrossref:
         (tmp_path / "searches" / "topic" / "search.json").write_text("{}")
         data = {
             "searches": [], "documents": [], "fulltext": [],
-            "guidelines": [], "web": [],
+            "guidelines": [], "web": [], "contracts": [],
         }
         findings = []
         utils.check_index_crossref(tmp_path, data, findings)
@@ -625,11 +627,11 @@ class TestRunIntegrityCheck:
         assert "not found" in findings[0]["description"]
 
     def test_clean_archive(self, tmp_path):
-        for name in ("searches", "documents", "fulltext", "guidelines", "web"):
+        for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts"):
             (tmp_path / name).mkdir()
         index = {
             "searches": [], "documents": [], "fulltext": [],
-            "guidelines": [], "web": [],
+            "guidelines": [], "web": [], "contracts": [],
         }
         (tmp_path / "index.json").write_text(json.dumps(index))
         findings = utils.run_integrity_check(tmp_path)
@@ -638,11 +640,11 @@ class TestRunIntegrityCheck:
 
 class TestVerifyAndReportIntegrity:
     def test_clean_returns_zero(self, tmp_path, capsys):
-        for name in ("searches", "documents", "fulltext", "guidelines", "web"):
+        for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts"):
             (tmp_path / name).mkdir()
         index = {
             "searches": [], "documents": [], "fulltext": [],
-            "guidelines": [], "web": [],
+            "guidelines": [], "web": [], "contracts": [],
         }
         (tmp_path / "index.json").write_text(json.dumps(index))
         result = utils.verify_and_report_integrity(tmp_path)

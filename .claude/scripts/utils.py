@@ -5,8 +5,11 @@ Constants, slugify, fetch helpers, and integrity check library.
 
 import html as _html
 import json
+import os
 import re
+import subprocess
 import sys as _sys
+import tempfile
 import time
 import unicodedata
 import urllib.error
@@ -137,6 +140,171 @@ def wrap_text(text, width=80):
     return lines
 
 
+# ---------------------------------------------------------------------------
+# PDF extraction — delegates to system binaries (poppler-utils pdftotext)
+# ---------------------------------------------------------------------------
+
+
+def clean_pdf_text(text):
+    """Clean common PDF-extraction artifacts from *text*.
+
+    Handles soft hyphens, de-hyphenation at line breaks, form feeds,
+    page numbers, running headers, backspace characters, and whitespace
+    normalisation.  Idempotent — safe to call on already-clean text.
+    """
+    # Character-level fixes (order matters)
+    text = text.replace("\xad\n", "")
+    text = text.replace("\xad", "")
+    text = text.replace("\b", " ")
+    text = text.replace("\f", "\n")
+
+    # De-hyphenation: word-\\nword → wordword when continuation starts lowercase
+    text = re.sub(
+        r"(\w{2,})-\n(\w+)",
+        lambda match: match.group(1) + match.group(2)
+        if match.group(2)[0].islower()
+        else match.group(1) + "-\n" + match.group(2),
+        text,
+    )
+
+    # Line-level artifact removal
+    lines = text.split("\n")
+    cleaned = []
+
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+
+        if not stripped:
+            cleaned.append("")
+            continue
+
+        # Standalone arabic page numbers
+        if re.match(r"^\d{1,4}$", stripped):
+            if _looks_like_page_artifact(index, lines):
+                continue
+
+        # Standalone roman-numeral page numbers
+        if re.match(r"^[ivxlcdm]{1,5}$", stripped.lower()):
+            if _looks_like_page_artifact(index, lines):
+                continue
+
+        # Running headers: short, all-lowercase, no sentence-ending punctuation
+        if (
+            index > 0
+            and len(stripped) < 40
+            and stripped.islower()
+            and not stripped.endswith((".", ",", "?", "!", ":", ";"))
+            and not stripped.endswith("-")
+        ):
+            previous_empty = not lines[index - 1].strip()
+            if previous_empty and _has_text_ahead(index, lines, lookahead=3):
+                continue
+
+        cleaned.append(stripped)
+
+    # Whitespace normalisation: collapse 3+ blank lines to 2
+    result = []
+    blank_count = 0
+    for line in cleaned:
+        if line == "":
+            blank_count += 1
+        else:
+            if blank_count > 0:
+                result.extend([""] * min(blank_count, 2))
+            blank_count = 0
+            result.append(line)
+
+    # Strip leading blank lines
+    while result and result[0] == "":
+        result.pop(0)
+
+    return "\n".join(result) + "\n"
+
+
+def _looks_like_page_artifact(index, lines):
+    """Return True if line *index* is likely a page number, not body text."""
+    if index == 0:
+        return False
+    previous_empty = not lines[index - 1].strip()
+    if previous_empty and _has_text_ahead(index, lines, lookahead=2):
+        return True
+    if not previous_empty and _has_text_ahead(index, lines, lookahead=3):
+        previous_stripped = lines[index - 1].strip()
+        if not previous_stripped.endswith((".", ",", ":", ";")):
+            return True
+    return False
+
+
+def _has_text_ahead(index, lines, lookahead=3):
+    """Return True if any non-empty line exists within *lookahead* lines after *index*."""
+    end = min(index + 1 + lookahead, len(lines))
+    for position in range(index + 1, end):
+        if lines[position].strip():
+            return True
+    return False
+
+
+def content_is_pdf(raw_bytes):
+    """Return True if *raw_bytes* looks like PDF content (magic bytes)."""
+    return raw_bytes[:5] == b"%PDF-"
+
+
+def pdf_bytes_to_markdown(raw_bytes, source_url="unknown"):
+    """Extract text from *raw_bytes* (PDF content) via ``pdftotext -layout``.
+
+    Returns cleaned Markdown-formatted text.  PDF-specific artifacts
+    (soft hyphens, page numbers, running headers, form feeds) are
+    removed via :func:`clean_pdf_text`.
+
+    Raises RuntimeError if pdftotext fails or produces empty output
+    (likely a scanned/image-only PDF requiring OCR).
+    """
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+        tmp_file.write(raw_bytes)
+        pdf_path = tmp_file.name
+
+    try:
+        process = subprocess.run(
+            ["pdftotext", "-layout", pdf_path, "-"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if process.returncode != 0:
+            raise RuntimeError(
+                f"pdftotext failed for {source_url}: {process.stderr}"
+            )
+        text = process.stdout.strip()
+        if not text:
+            raise RuntimeError(
+                f"pdftotext produced empty output for {source_url} "
+                f"(PDF may be scanned/image-only — OCR required)"
+            )
+        return clean_pdf_text(text)
+    finally:
+        _trash_or_unlink(pdf_path)
+
+
+def _trash_or_unlink(file_path):
+    """Move *file_path* to the desktop trash, falling back to permanent delete.
+
+    Uses ``gio trash`` when available (GNOME/GLib).  Falls back to
+    :func:`os.unlink` when ``gio`` is not on PATH.
+    """
+    path_string = str(file_path)
+    if not os.path.lexists(path_string):
+        return
+    try:
+        subprocess.run(
+            ["gio", "trash", "-f", path_string],
+            capture_output=True,
+            timeout=10,
+            check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError, OSError):
+        os.unlink(path_string)
+
+
 # =============================================================================
 # law-db integrity check — shared library
 # =============================================================================
@@ -160,6 +328,7 @@ CATEGORY_METADATA = "metadata"
 CATEGORY_SEARCH = "search"
 CATEGORY_WEB = "web"
 CATEGORY_GUIDELINE = "guideline"
+CATEGORY_CONTRACT = "contract"
 
 
 def finding(severity, category, location, description, fix_hint):
@@ -189,7 +358,7 @@ def _indexed_paths(data, key):
 
 
 def check_required_dirs(root, findings):
-    for name in ("searches", "documents", "fulltext", "guidelines", "web"):
+    for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts"):
         p = root / name
         if not p.is_dir():
             findings.append(
@@ -256,7 +425,7 @@ def check_index_valid(root, findings):
         )
         return None
 
-    expected_keys = {"searches", "documents", "fulltext", "guidelines", "web"}
+    expected_keys = {"searches", "documents", "fulltext", "guidelines", "web", "contracts"}
     actual_keys = set(data.keys())
     missing_keys = expected_keys - actual_keys
     extra_keys = actual_keys - expected_keys
@@ -333,12 +502,18 @@ def check_index_crossref(root, data, findings):
         for p in (root / "web").rglob("*")
         if p.is_file() and (root / "web").is_dir()
     )
+    actual_contracts = sorted(
+        str(p.parent.relative_to(root))
+        for p in (root / "contracts").rglob("metadata.json")
+        if (root / "contracts").is_dir()
+    )
 
     index_searches = _indexed_paths(data, "searches")
     index_documents = _indexed_paths(data, "documents")
     index_fulltext = _indexed_paths(data, "fulltext")
     index_guidelines = _indexed_paths(data, "guidelines")
     index_web = _indexed_paths(data, "web")
+    index_contracts = _indexed_paths(data, "contracts")
 
     for label, indexed, on_disk, category in (
         ("search", index_searches, actual_searches, CATEGORY_SEARCH),
@@ -346,6 +521,7 @@ def check_index_crossref(root, data, findings):
         ("fulltext", index_fulltext, actual_fulltext, CATEGORY_METADATA),
         ("guideline", index_guidelines, actual_guidelines, CATEGORY_GUIDELINE),
         ("web", index_web, actual_web, CATEGORY_WEB),
+        ("contract", index_contracts, actual_contracts, CATEGORY_CONTRACT),
     ):
         missing = sorted(set(indexed) - set(on_disk))
         extra = sorted(set(on_disk) - set(indexed))
@@ -604,6 +780,129 @@ def check_guideline_integrity(root, findings):
             )
 
 
+def check_contracts_integrity(root, findings):
+    """Validate contract/AGB directories under contracts/."""
+    contracts_dir = root / "contracts"
+    if not contracts_dir.is_dir():
+        return
+
+    for meta_file in sorted(contracts_dir.rglob("metadata.json")):
+        contract_dir = meta_file.parent
+        relative_dir = str(contract_dir.relative_to(root))
+
+        # Validate metadata.json JSON
+        try:
+            metadata = json.loads(_read_text(meta_file))
+        except json.JSONDecodeError as exc:
+            findings.append(
+                finding(
+                    SEVERITY_ERROR,
+                    CATEGORY_CONTRACT,
+                    f"{relative_dir}/metadata.json",
+                    f"metadata.json is not valid JSON: {exc}",
+                    "Fix the JSON syntax error or re-archive the contract.",
+                )
+            )
+            continue
+        except OSError as exc:
+            findings.append(
+                finding(
+                    SEVERITY_ERROR,
+                    CATEGORY_CONTRACT,
+                    relative_dir,
+                    f"Cannot read metadata.json: {exc}",
+                    "Check file permissions.",
+                )
+            )
+            continue
+
+        contract_type = metadata.get("type", "")
+        if contract_type not in ("contract", "agb", "template"):
+            findings.append(
+                finding(
+                    SEVERITY_WARNING,
+                    CATEGORY_CONTRACT,
+                    relative_dir,
+                    f"Unrecognised contract type: {contract_type!r}",
+                    "Set type to one of: contract, agb, template.",
+                )
+            )
+
+        # At least one of source.pdf or source.md should exist
+        has_pdf = metadata.get("has_pdf", False)
+        has_markdown = metadata.get("has_markdown", False)
+
+        if has_pdf:
+            pdf_file = contract_dir / "source.pdf"
+            if not pdf_file.is_file():
+                findings.append(
+                    finding(
+                        SEVERITY_ERROR,
+                        CATEGORY_CONTRACT,
+                        relative_dir,
+                        "metadata.json claims has_pdf but source.pdf is missing.",
+                        "Restore the PDF or update metadata.json has_pdf to false.",
+                    )
+                )
+            elif pdf_file.stat().st_size == 0:
+                findings.append(
+                    finding(
+                        SEVERITY_ERROR,
+                        CATEGORY_CONTRACT,
+                        f"{relative_dir}/source.pdf",
+                        "source.pdf is empty (zero bytes).",
+                        "Re-download or remove the empty file.",
+                    )
+                )
+
+        if has_markdown:
+            markdown_file = contract_dir / "source.md"
+            if not markdown_file.is_file():
+                findings.append(
+                    finding(
+                        SEVERITY_ERROR,
+                        CATEGORY_CONTRACT,
+                        relative_dir,
+                        "metadata.json claims has_markdown but source.md is missing.",
+                        "Re-extract the markdown or update metadata.json has_markdown to false.",
+                    )
+                )
+            else:
+                try:
+                    content = _read_text(markdown_file).strip()
+                    if not content:
+                        findings.append(
+                            finding(
+                                SEVERITY_ERROR,
+                                CATEGORY_CONTRACT,
+                                f"{relative_dir}/source.md",
+                                "source.md exists but is empty.",
+                                "Re-extract the markdown content.",
+                            )
+                        )
+                except OSError as exc:
+                    findings.append(
+                        finding(
+                            SEVERITY_ERROR,
+                            CATEGORY_CONTRACT,
+                            f"{relative_dir}/source.md",
+                            f"Cannot read source.md: {exc}",
+                            "Check file permissions.",
+                        )
+                    )
+
+        if not has_pdf and not has_markdown:
+            findings.append(
+                finding(
+                    SEVERITY_ERROR,
+                    CATEGORY_CONTRACT,
+                    relative_dir,
+                    "Contract directory has neither source.pdf nor source.md.",
+                    "Archive at least one of the PDF or extracted markdown.",
+                )
+            )
+
+
 def check_legacy_dirs(root, findings):
     """Warn about old flat directories left over from pre-migration layouts."""
     for name in ("metadata", "abstracts", "papers"):
@@ -667,6 +966,7 @@ def run_integrity_check(root):
     check_search_json(root, findings)
     check_web_files(root, findings)
     check_guideline_integrity(root, findings)
+    check_contracts_integrity(root, findings)
 
     # Phase 4: legacy / cleanup
     check_legacy_dirs(root, findings)
