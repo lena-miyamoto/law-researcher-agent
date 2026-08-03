@@ -52,6 +52,8 @@ in real sessions. **None of them are acceptable.**
 | `jq` / `cat` / `grep` on `law-db/index.json` | Bypasses the tool layer | `uv run law-db-query --list-topics` |
 | `python3` or `python` in any form | Forbidden by CLAUDE.md contract | `uv run <entry-point>` |
 | `node -e`, `perl -e` touching law-db files | Same bypass, different language | `uv run law-db-*` tools |
+| `cat` / `grep` / `jq` on `law-db/receipts/*/metadata.json` | Bypasses receipt validation | `uv run law-db-query --read-metadata ...` |
+| Direct write to `law-db/receipts/` | Corrupts archive without integrity check | `uv run law-db-receipt --type ...` |
 
 ## Bootstrap
 
@@ -80,6 +82,8 @@ querying, or analyzing documents from the archive:
 | Legal text database: EU law (EUR-Lex)               | `.claude/agents/rules/eur-lex-guidelines.md` |
 | Insurance contract analysis framework              | `.claude/agents/rules/contract-analysis-framework.md`         |
 | Insurance and EU regulatory reference              | `.claude/agents/rules/insurance-at-eu-guidelines.md`          |
+| Austrian tax law reference                         | `.claude/agents/rules/austrian-tax-law-guidelines.md`         |
+| Tax document analysis framework                    | `.claude/agents/rules/tax-document-analysis-framework.md`     |
 | Script development conventions                      | `.claude/scripts/DEVELOPER.md`                                |
 | Overall integration and CLI contract                | `CLAUDE.md`                                                   |
 
@@ -129,6 +133,8 @@ common operations.
 | Open Science Dir   | `uv run law-db --source open-science-directory --query '<query>' --topic '<name>'`               |
 | Archive URL        | `uv run law-db --archive-url '<URL>' --topic '<name>'`                                           |
 | Archive first N    | `uv run law-db --source google-scholar --query '<query>' --archive-first <N> --topic '<name>'`  |
+| Archive receipt    | `uv run law-db-receipt --type receipt --tax-category werbungskosten --title '<title>' --file '<path>' --topic '<name>'` |
+| Archive broker CSV | `uv run law-db-receipt --type broker_statement --tax-category einkuenfte_aus_kapitalvermoegen --title '<title>' --file '<path>.csv' --tax-period <YYYY> --topic '<name>'` |
 | Migrate (dry run)  | `uv run law-db --migrate-dry-run`                                                                |
 | Migrate            | `uv run law-db --migrate`                                                                        |
 

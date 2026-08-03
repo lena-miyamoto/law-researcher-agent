@@ -129,3 +129,46 @@ Requires `pdftotext` (poppler-utils) on PATH for PDF→Markdown extraction.
 - `metadata.json` — structured metadata (type, title, parties, dates, has_pdf, has_markdown)
 - `source.pdf` — original PDF (if provided)
 - `source.md` — extracted Markdown (if extraction succeeded)
+
+---
+
+## `uv run law-db-receipt` — Tax Document Archival
+
+Archive tax documents (receipts, broker statements, medical honoraria) into
+`law-db/receipts/`. Stores PDF originals alongside automatically extracted
+Markdown, and CSV originals for broker/bank exports. Requires `pdftotext`
+(poppler-utils) on PATH for PDF→Markdown extraction.
+
+**Required parameters:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `--type` | choice | `receipt`, `medical_honorarium`, `broker_statement`, `business_expense`, `income_document`, `salary_statement`, `bank_statement`, or `other` |
+| `--title` | str | Human-readable title for the tax document |
+| `--tax-category` | choice | `werbungskosten`, `sonderausgaben`, `aussergewoehnliche_belastung`, `einkuenfte_aus_kapitalvermoegen`, `einkuenfte_aus_selbststaendiger_arbeit`, `einkuenfte_aus_nichtselbststaendiger_arbeit`, `umsatzsteuer_vorsteuer`, or `other` |
+| `--file` xor `--url` | — | One of `--file <path>` or `--url <url>` (not both) |
+
+**Optional parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `--topic` | str | `uncategorized` | Topic for grouping (e.g. `arztrechnung`, `flatex`, `finanzamt`) |
+| `--topic-slug` | str | — | Explicit kebab-case slug; overrides `--topic` |
+| `--payer` | str | — | Entity that issued the document (e.g. doctor, broker, employer) |
+| `--payee` | str | — | Entity that received the document (typically the taxpayer) |
+| `--amount` | float | — | Monetary amount in the document currency |
+| `--currency` | str | `EUR` | ISO 4217 currency code |
+| `--document-date` | str | — | Date on the document in YYYY-MM-DD format |
+| `--tax-period` | str | — | Tax period in YYYY format (e.g. `2025`) |
+| `--language` | str | `de` | Language code for the document |
+| `--source-url` | str | — | Original source URL for reference |
+| `--notes` | str | — | Free-text notes |
+| `--identifier-slug` | str | auto | Explicit kebab-case folder slug; auto-generated from title |
+| `--law-db` | str | `law-db` | Target law-db directory |
+
+**Directory layout:** `receipts/<tax_category>/<topic>/<identifier-slug>/` containing:
+
+- `metadata.json` — structured metadata (subtype, title, tax_category, payer, payee, amount, dates, has_pdf, has_markdown, has_csv, csv_row_count, csv_columns)
+- `source.pdf` — original PDF (if provided)
+- `source.md` — extracted Markdown (if extraction succeeded)
+- `source.csv` — original CSV data (if provided)

@@ -18,7 +18,7 @@ import utils
 class TestEnsureLawDbStructure:
     def test_creates_all_dirs(self, tmp_path):
         law_db.ensure_law_db_structure(tmp_path)
-        for name in ("searches", "documents", "fulltext", "guidelines", "web"):
+        for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts", "receipts"):
             assert (tmp_path / name).is_dir()
 
 
@@ -75,7 +75,7 @@ class TestUniqueFilename:
 class TestLoadExistingIndexEntries:
     def test_no_index(self, tmp_path):
         result = law_db.load_existing_index_entries(tmp_path / "index.json")
-        assert result == ({}, {}, {}, {}, {}, {})
+        assert result == ({}, {}, {}, {}, {}, {}, {})
 
     def test_preserves_entries(self, tmp_path):
         index = {
@@ -88,7 +88,7 @@ class TestLoadExistingIndexEntries:
             "web": [],
         }
         (tmp_path / "index.json").write_text(json.dumps(index))
-        searches, documents, fulltexts, guidelines, web, contracts = law_db.load_existing_index_entries(
+        searches, documents, fulltexts, guidelines, web, contracts, receipts = law_db.load_existing_index_entries(
             tmp_path / "index.json"
         )
         assert "searches/datenschutz/search.json" in searches
@@ -97,7 +97,7 @@ class TestLoadExistingIndexEntries:
     def test_invalid_json_fallback(self, tmp_path):
         (tmp_path / "index.json").write_text("not json {{{")
         result = law_db.load_existing_index_entries(tmp_path / "index.json")
-        assert result == ({}, {}, {}, {}, {}, {})
+        assert result == ({}, {}, {}, {}, {}, {}, {})
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +108,7 @@ class TestLoadExistingIndexEntries:
 class TestCollectIndexData:
     def test_empty_archive(self, tmp_path):
         law_db.ensure_law_db_structure(tmp_path)
-        searches, documents, fulltexts, guidelines, web, contracts = law_db.collect_index_data(tmp_path)
+        searches, documents, fulltexts, guidelines, web, contracts, receipts = law_db.collect_index_data(tmp_path)
         assert searches == []
         assert documents == []
         assert fulltexts == []
@@ -120,7 +120,7 @@ class TestCollectIndexData:
         doc_dir = tmp_path / "documents" / "datenschutz" / "doc-test"
         doc_dir.mkdir(parents=True)
         (doc_dir / "metadata.json").write_text('{"title": "Test Doc"}')
-        searches, documents, fulltexts, guidelines, web, contracts = law_db.collect_index_data(tmp_path)
+        searches, documents, fulltexts, guidelines, web, contracts, receipts = law_db.collect_index_data(tmp_path)
         assert len(documents) == 1
         assert documents[0]["path"].startswith("documents/")
 
@@ -129,7 +129,7 @@ class TestCollectIndexData:
         web_dir = tmp_path / "web" / "datenschutz"
         web_dir.mkdir(parents=True)
         (web_dir / "page.html").write_text("<html></html>")
-        searches, documents, fulltexts, guidelines, web, contracts = law_db.collect_index_data(tmp_path)
+        searches, documents, fulltexts, guidelines, web, contracts, receipts = law_db.collect_index_data(tmp_path)
         assert len(web) == 1
 
     def test_guidelines_collected(self, tmp_path):
@@ -137,7 +137,7 @@ class TestCollectIndexData:
         gdir = tmp_path / "guidelines" / "eu-law"
         gdir.mkdir(parents=True)
         (gdir / "source.md").write_text("---\ntitle: Test\n---\n# Content")
-        searches, documents, fulltexts, guidelines, web, contracts = law_db.collect_index_data(tmp_path)
+        searches, documents, fulltexts, guidelines, web, contracts, receipts = law_db.collect_index_data(tmp_path)
         assert len(guidelines) == 1
 
 

@@ -99,13 +99,13 @@ not when using `uv run` entry points.
 
 Context engineering: `.claude/skills/optimize-repo/rules/context-engineering-best-practices.md` — authoritative standard for all instruction files in this repo.
 Agent dispatch: invoke via Agent tool with `subagent_type: "<name>"` per YAML frontmatter `name` field.
-Available agents: `law-researcher` (legal research), `insurance-broker` (insurance contract analysis, regulatory compliance, and market comparison).
+Available agents: `law-researcher` (legal research), `insurance-broker` (insurance contract analysis, regulatory compliance, and market comparison), `tax-advisor` (tax document analysis, Austrian and EU tax law research, and tax optimization).
 Skills that say "dispatch the X agent" → invoke via Agent tool with `subagent_type: "X"`.
 
 ### Guidelines
 
 Human-authored source reference documents live in `.claude/agents/rules/` with
-`-guidelines.md` suffix (e.g. `ris-guidelines.md`, `eur-lex-guidelines.md`) —
+`-guidelines.md` suffix (e.g. `ris-guidelines.md`, `eur-lex-guidelines.md`, `austrian-tax-law-guidelines.md`, `tax-document-analysis-framework.md`) —
 VCS-tracked and always present on checkout. This is the correct location for database
 descriptions (RIS, EUR-Lex, jusline.at), search protocol references, and similar
 instruction files. Do not place guideline files in `law-db/guidelines/` — that directory

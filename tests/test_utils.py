@@ -301,14 +301,14 @@ class TestIntegrityConstants:
 
 class TestCheckRequiredDirs:
     def test_all_present(self, tmp_path):
-        for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts"):
+        for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts", "receipts"):
             (tmp_path / name).mkdir()
         findings = []
         utils.check_required_dirs(tmp_path, findings)
         assert findings == []
 
     def test_one_missing(self, tmp_path):
-        for name in ("searches", "documents", "fulltext", "guidelines", "contracts"):
+        for name in ("searches", "documents", "fulltext", "guidelines", "contracts", "receipts"):
             (tmp_path / name).mkdir()
         findings = []
         utils.check_required_dirs(tmp_path, findings)
@@ -319,7 +319,7 @@ class TestCheckRequiredDirs:
     def test_all_missing(self, tmp_path):
         findings = []
         utils.check_required_dirs(tmp_path, findings)
-        assert len(findings) == 6
+        assert len(findings) == 7
 
 
 class TestCheckEmptyFiles:
@@ -368,6 +368,7 @@ class TestCheckIndexValid:
             "guidelines": [],
             "web": [],
             "contracts": [],
+            "receipts": [],
         }
         (tmp_path / "index.json").write_text(json.dumps(index))
         findings = []
@@ -393,7 +394,7 @@ class TestCheckIndexValid:
     def test_extra_keys_warning(self, tmp_path):
         index = {
             "searches": [], "documents": [], "fulltext": [],
-            "guidelines": [], "web": [], "contracts": [], "extra_category": [],
+            "guidelines": [], "web": [], "contracts": [], "receipts": [], "extra_category": [],
         }
         (tmp_path / "index.json").write_text(json.dumps(index))
         findings = []
@@ -412,6 +413,7 @@ class TestCheckIndexValid:
             "guidelines": [],
             "web": [],
             "contracts": [],
+            "receipts": [],
         }
         (tmp_path / "index.json").write_text(json.dumps(index))
         findings = []
@@ -434,7 +436,7 @@ class TestCheckIndexCrossref:
         (tmp_path / "web").mkdir()
         data = {
             "searches": [], "documents": [], "fulltext": [],
-            "guidelines": [], "web": [], "contracts": [],
+            "guidelines": [], "web": [], "contracts": [], "receipts": [],
         }
         findings = []
         utils.check_index_crossref(tmp_path, data, findings)
@@ -449,6 +451,8 @@ class TestCheckIndexCrossref:
             "fulltext": [],
             "guidelines": [],
             "web": [],
+            "contracts": [],
+            "receipts": [],
         }
         findings = []
         utils.check_index_crossref(tmp_path, data, findings)
@@ -464,7 +468,7 @@ class TestCheckIndexCrossref:
         (tmp_path / "searches" / "topic" / "search.json").write_text("{}")
         data = {
             "searches": [], "documents": [], "fulltext": [],
-            "guidelines": [], "web": [], "contracts": [],
+            "guidelines": [], "web": [], "contracts": [], "receipts": [],
         }
         findings = []
         utils.check_index_crossref(tmp_path, data, findings)
@@ -627,11 +631,11 @@ class TestRunIntegrityCheck:
         assert "not found" in findings[0]["description"]
 
     def test_clean_archive(self, tmp_path):
-        for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts"):
+        for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts", "receipts"):
             (tmp_path / name).mkdir()
         index = {
             "searches": [], "documents": [], "fulltext": [],
-            "guidelines": [], "web": [], "contracts": [],
+            "guidelines": [], "web": [], "contracts": [], "receipts": [],
         }
         (tmp_path / "index.json").write_text(json.dumps(index))
         findings = utils.run_integrity_check(tmp_path)
@@ -640,11 +644,11 @@ class TestRunIntegrityCheck:
 
 class TestVerifyAndReportIntegrity:
     def test_clean_returns_zero(self, tmp_path, capsys):
-        for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts"):
+        for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts", "receipts"):
             (tmp_path / name).mkdir()
         index = {
             "searches": [], "documents": [], "fulltext": [],
-            "guidelines": [], "web": [], "contracts": [],
+            "guidelines": [], "web": [], "contracts": [], "receipts": [],
         }
         (tmp_path / "index.json").write_text(json.dumps(index))
         result = utils.verify_and_report_integrity(tmp_path)
@@ -655,3 +659,56 @@ class TestVerifyAndReportIntegrity:
         assert result == 1
         captured = capsys.readouterr()
         assert "FAILED" in captured.err
+
+
+class TestParseCsvRows:
+    def test_basic_parsing(self, tmp_path):
+        csv_path = tmp_path / "test.csv"
+        csv_path.write_text("name,amount,date\nAlice,100,2024-01-01\nBob,200,2024-02-01\n")
+        rows = utils.parse_csv_rows(str(csv_path))
+        assert len(rows) == 2
+        assert rows[0]["name"] == "Alice"
+        assert rows[0]["amount"] == "100"
+        assert rows[1]["name"] == "Bob"
+
+    def test_empty_file(self, tmp_path):
+        csv_path = tmp_path / "empty.csv"
+        csv_path.write_text("")
+        rows = utils.parse_csv_rows(str(csv_path))
+        assert rows == []
+
+    def test_header_only(self, tmp_path):
+        csv_path = tmp_path / "header_only.csv"
+        csv_path.write_text("col1,col2,col3\n")
+        rows = utils.parse_csv_rows(str(csv_path))
+        assert rows == []
+
+    def test_custom_delimiter(self, tmp_path):
+        csv_path = tmp_path / "semicolon.csv"
+        csv_path.write_text("name;value\nalpha;1\nbeta;2\n")
+        rows = utils.parse_csv_rows(str(csv_path), delimiter=";")
+        assert len(rows) == 2
+        assert rows[0]["name"] == "alpha"
+        assert rows[1]["value"] == "2"
+
+    def test_missing_values_become_empty_strings(self, tmp_path):
+        csv_path = tmp_path / "missing.csv"
+        csv_path.write_text("a,b,c\n1,,3\n,2,\n")
+        rows = utils.parse_csv_rows(str(csv_path))
+        assert len(rows) == 2
+        assert rows[0]["b"] == ""
+
+    def test_utf8_with_bom(self, tmp_path):
+        csv_path = tmp_path / "bom.csv"
+        csv_path.write_bytes(b"\xef\xbb\xbfname,value\n\xc3\xa9,100\n")
+        rows = utils.parse_csv_rows(str(csv_path), encoding="utf-8-sig")
+        assert len(rows) == 1
+        assert rows[0]["name"] == "é"
+
+    def test_skips_fully_empty_rows(self, tmp_path):
+        csv_path = tmp_path / "with_empty_rows.csv"
+        csv_path.write_text("name,amount\nAlice,100\n,,\n,,,\nBob,200\n")
+        rows = utils.parse_csv_rows(str(csv_path))
+        assert len(rows) == 2
+        assert rows[0]["name"] == "Alice"
+        assert rows[1]["name"] == "Bob"

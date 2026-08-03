@@ -141,6 +141,36 @@ def wrap_text(text, width=80):
 
 
 # ---------------------------------------------------------------------------
+# CSV parsing — stdlib only, no new dependencies
+# ---------------------------------------------------------------------------
+
+
+def parse_csv_rows(file_path, delimiter=",", encoding="utf-8"):
+    """Parse *file_path* as CSV, returning ``list[dict[str, str]]``.
+
+    Uses :mod:`csv.DictReader`.  Skips completely empty rows and rows
+    where every field is an empty string.  Handles encoding via *encoding*.
+    """
+    import csv as _csv
+
+    with open(file_path, encoding=encoding, newline="") as handle:
+        reader = _csv.DictReader(handle, delimiter=delimiter)
+        if reader.fieldnames is None:
+            return []
+        rows = []
+        for row in reader:
+            values = []
+            for value in row.values():
+                if isinstance(value, list):
+                    values.extend(value)
+                elif value is not None:
+                    values.append(value)
+            if any(v.strip() for v in values if isinstance(v, str)):
+                rows.append(row)
+        return rows
+
+
+# ---------------------------------------------------------------------------
 # PDF extraction — delegates to system binaries (poppler-utils pdftotext)
 # ---------------------------------------------------------------------------
 
@@ -329,6 +359,7 @@ CATEGORY_SEARCH = "search"
 CATEGORY_WEB = "web"
 CATEGORY_GUIDELINE = "guideline"
 CATEGORY_CONTRACT = "contract"
+CATEGORY_RECEIPT = "receipt"
 
 
 def finding(severity, category, location, description, fix_hint):
@@ -358,7 +389,7 @@ def _indexed_paths(data, key):
 
 
 def check_required_dirs(root, findings):
-    for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts"):
+    for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts", "receipts"):
         p = root / name
         if not p.is_dir():
             findings.append(
@@ -425,7 +456,7 @@ def check_index_valid(root, findings):
         )
         return None
 
-    expected_keys = {"searches", "documents", "fulltext", "guidelines", "web", "contracts"}
+    expected_keys = {"searches", "documents", "fulltext", "guidelines", "web", "contracts", "receipts"}
     actual_keys = set(data.keys())
     missing_keys = expected_keys - actual_keys
     extra_keys = actual_keys - expected_keys
@@ -507,6 +538,11 @@ def check_index_crossref(root, data, findings):
         for p in (root / "contracts").rglob("metadata.json")
         if (root / "contracts").is_dir()
     )
+    actual_receipts = sorted(
+        str(p.parent.relative_to(root))
+        for p in (root / "receipts").rglob("metadata.json")
+        if (root / "receipts").is_dir()
+    )
 
     index_searches = _indexed_paths(data, "searches")
     index_documents = _indexed_paths(data, "documents")
@@ -514,6 +550,7 @@ def check_index_crossref(root, data, findings):
     index_guidelines = _indexed_paths(data, "guidelines")
     index_web = _indexed_paths(data, "web")
     index_contracts = _indexed_paths(data, "contracts")
+    index_receipts = _indexed_paths(data, "receipts")
 
     for label, indexed, on_disk, category in (
         ("search", index_searches, actual_searches, CATEGORY_SEARCH),
@@ -522,6 +559,7 @@ def check_index_crossref(root, data, findings):
         ("guideline", index_guidelines, actual_guidelines, CATEGORY_GUIDELINE),
         ("web", index_web, actual_web, CATEGORY_WEB),
         ("contract", index_contracts, actual_contracts, CATEGORY_CONTRACT),
+        ("receipt", index_receipts, actual_receipts, CATEGORY_RECEIPT),
     ):
         missing = sorted(set(indexed) - set(on_disk))
         extra = sorted(set(on_disk) - set(indexed))
@@ -903,6 +941,176 @@ def check_contracts_integrity(root, findings):
             )
 
 
+def check_receipts_integrity(root, findings):
+    """Validate receipt/tax-document directories under receipts/."""
+    receipts_dir = root / "receipts"
+    if not receipts_dir.is_dir():
+        return
+
+    VALID_SUBTYPES = {
+        "receipt", "medical_honorarium", "broker_statement",
+        "business_expense", "income_document", "salary_statement",
+        "bank_statement", "other",
+    }
+    VALID_TAX_CATEGORIES = {
+        "werbungskosten", "sonderausgaben", "aussergewoehnliche_belastung",
+        "einkuenfte_aus_kapitalvermoegen", "einkuenfte_aus_selbststaendiger_arbeit",
+        "einkuenfte_aus_nichtselbststaendiger_arbeit", "umsatzsteuer_vorsteuer",
+        "other",
+    }
+
+    for meta_file in sorted(receipts_dir.rglob("metadata.json")):
+        receipt_dir = meta_file.parent
+        relative_dir = str(receipt_dir.relative_to(root))
+
+        # Validate metadata.json JSON
+        try:
+            metadata = json.loads(_read_text(meta_file))
+        except json.JSONDecodeError as exc:
+            findings.append(
+                finding(
+                    SEVERITY_ERROR,
+                    CATEGORY_RECEIPT,
+                    f"{relative_dir}/metadata.json",
+                    f"metadata.json is not valid JSON: {exc}",
+                    "Fix the JSON syntax error or re-archive the receipt.",
+                )
+            )
+            continue
+        except OSError as exc:
+            findings.append(
+                finding(
+                    SEVERITY_ERROR,
+                    CATEGORY_RECEIPT,
+                    relative_dir,
+                    f"Cannot read metadata.json: {exc}",
+                    "Check file permissions.",
+                )
+            )
+            continue
+
+        subtype = metadata.get("subtype", "")
+        if subtype not in VALID_SUBTYPES:
+            findings.append(
+                finding(
+                    SEVERITY_WARNING,
+                    CATEGORY_RECEIPT,
+                    relative_dir,
+                    f"Unrecognised receipt subtype: {subtype!r}",
+                    f"Set subtype to one of: {', '.join(sorted(VALID_SUBTYPES))}.",
+                )
+            )
+
+        tax_category = metadata.get("tax_category", "")
+        if tax_category not in VALID_TAX_CATEGORIES:
+            findings.append(
+                finding(
+                    SEVERITY_WARNING,
+                    CATEGORY_RECEIPT,
+                    relative_dir,
+                    f"Unrecognised tax category: {tax_category!r}",
+                    f"Set tax_category to one of: {', '.join(sorted(VALID_TAX_CATEGORIES))}.",
+                )
+            )
+
+        has_pdf = metadata.get("has_pdf", False)
+        has_markdown = metadata.get("has_markdown", False)
+        has_csv = metadata.get("has_csv", False)
+
+        if has_pdf:
+            pdf_file = receipt_dir / "source.pdf"
+            if not pdf_file.is_file():
+                findings.append(
+                    finding(
+                        SEVERITY_ERROR,
+                        CATEGORY_RECEIPT,
+                        relative_dir,
+                        "metadata.json claims has_pdf but source.pdf is missing.",
+                        "Restore the PDF or update metadata.json has_pdf to false.",
+                    )
+                )
+            elif pdf_file.stat().st_size == 0:
+                findings.append(
+                    finding(
+                        SEVERITY_ERROR,
+                        CATEGORY_RECEIPT,
+                        f"{relative_dir}/source.pdf",
+                        "source.pdf is empty (zero bytes).",
+                        "Re-download or remove the empty file.",
+                    )
+                )
+
+        if has_markdown:
+            markdown_file = receipt_dir / "source.md"
+            if not markdown_file.is_file():
+                findings.append(
+                    finding(
+                        SEVERITY_ERROR,
+                        CATEGORY_RECEIPT,
+                        relative_dir,
+                        "metadata.json claims has_markdown but source.md is missing.",
+                        "Re-extract the markdown or update metadata.json has_markdown to false.",
+                    )
+                )
+            else:
+                try:
+                    content = _read_text(markdown_file).strip()
+                    if not content:
+                        findings.append(
+                            finding(
+                                SEVERITY_ERROR,
+                                CATEGORY_RECEIPT,
+                                f"{relative_dir}/source.md",
+                                "source.md exists but is empty.",
+                                "Re-extract the markdown content.",
+                            )
+                        )
+                except OSError as exc:
+                    findings.append(
+                        finding(
+                            SEVERITY_ERROR,
+                            CATEGORY_RECEIPT,
+                            f"{relative_dir}/source.md",
+                            f"Cannot read source.md: {exc}",
+                            "Check file permissions.",
+                        )
+                    )
+
+        if has_csv:
+            csv_file = receipt_dir / "source.csv"
+            if not csv_file.is_file():
+                findings.append(
+                    finding(
+                        SEVERITY_ERROR,
+                        CATEGORY_RECEIPT,
+                        relative_dir,
+                        "metadata.json claims has_csv but source.csv is missing.",
+                        "Restore the CSV or update metadata.json has_csv to false.",
+                    )
+                )
+            elif csv_file.stat().st_size == 0:
+                findings.append(
+                    finding(
+                        SEVERITY_ERROR,
+                        CATEGORY_RECEIPT,
+                        f"{relative_dir}/source.csv",
+                        "source.csv is empty (zero bytes).",
+                        "Re-export or remove the empty file.",
+                    )
+                )
+
+        if not has_pdf and not has_markdown and not has_csv:
+            findings.append(
+                finding(
+                    SEVERITY_ERROR,
+                    CATEGORY_RECEIPT,
+                    relative_dir,
+                    "Receipt directory has neither source.pdf, source.md, nor source.csv.",
+                    "Archive at least one source file.",
+                )
+            )
+
+
 def check_legacy_dirs(root, findings):
     """Warn about old flat directories left over from pre-migration layouts."""
     for name in ("metadata", "abstracts", "papers"):
@@ -967,6 +1175,7 @@ def run_integrity_check(root):
     check_web_files(root, findings)
     check_guideline_integrity(root, findings)
     check_contracts_integrity(root, findings)
+    check_receipts_integrity(root, findings)
 
     # Phase 4: legacy / cleanup
     check_legacy_dirs(root, findings)

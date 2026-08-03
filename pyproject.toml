@@ -16,6 +16,7 @@ law-db-lookup = "entrypoints:law_db_lookup"
 law-db-query = "entrypoints:law_db_query"
 law-db-integrity-check = "entrypoints:law_db_integrity_check"
 law-db-contract = "entrypoints:law_db_contract"
+law-db-receipt = "entrypoints:law_db_receipt"
 lint-md = "entrypoints:lint_md"
 test = "entrypoints:test"
 

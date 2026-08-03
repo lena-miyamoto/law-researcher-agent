@@ -45,6 +45,10 @@ def law_db_contract():
     return _load_script("law_db_contract", "law-db-contract.py").main()
 
 
+def law_db_receipt():
+    return _load_script("law_db_receipt", "law-db-receipt.py").main()
+
+
 def lint_md(args=None):
     """Run pymarkdownlnt on repo markdown files.
 
