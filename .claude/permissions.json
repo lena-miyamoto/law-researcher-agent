@@ -10,7 +10,13 @@
       "^https://opensciencedirectory\\.net(/|$)",
       "^https://doi\\.org(/|$)",
       "^https://www\\.gesetze-im-internet\\.de(/|$)",
-      "^https://www\\.legislation\\.gov\\.uk(/|$)"
+      "^https://www\\.legislation\\.gov\\.uk(/|$)",
+      "^https://www\\.fma\\.gv\\.at(/|$)",
+      "^https://www\\.durchblicker\\.at(/|$)",
+      "^https://www\\.versicherungsverband\\.at(/|$)",
+      "^https://www\\.eiopa\\.europa\\.eu(/|$)",
+      "^https://www\\.sozialversicherung\\.at(/|$)",
+      "^https://www\\.gv\\.at(/|$)"
     ],
     "Skill": [
       "^compress-skill$",
@@ -26,6 +32,12 @@
       "^curl -s [\"']https://doi\\.org/",
       "^curl -s [\"']https://www\\.gesetze-im-internet\\.de/",
       "^curl -s [\"']https://www\\.legislation\\.gov\\.uk/",
+      "^curl -s [\"']https://www\\.fma\\.gv\\.at/",
+      "^curl -s [\"']https://www\\.durchblicker\\.at/",
+      "^curl -s [\"']https://www\\.versicherungsverband\\.at/",
+      "^curl -s [\"']https://www\\.eiopa\\.europa\\.eu/",
+      "^curl -s [\"']https://www\\.sozialversicherung\\.at/",
+      "^curl -s [\"']https://www\\.gv\\.at/",
       "^uv run law-db(\\s|$)",
       "^uv run law-db-lookup(\\s|$)",
       "^uv run law-db-query(\\s|$)",

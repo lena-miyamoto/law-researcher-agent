@@ -93,6 +93,7 @@ not when using `uv run` entry points.
 
 Context engineering: `.claude/skills/optimize-repo/rules/context-engineering-best-practices.md` — authoritative standard for all instruction files in this repo.
 Agent dispatch: invoke via Agent tool with `subagent_type: "<name>"` per YAML frontmatter `name` field.
+Available agents: `law-researcher` (legal research), `insurance-broker` (insurance contract analysis, regulatory compliance, and market comparison).
 Skills that say "dispatch the X agent" → invoke via Agent tool with `subagent_type: "X"`.
 
 ### Guidelines
