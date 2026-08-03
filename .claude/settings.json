@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(compress-skill)",
+      "Skill(optimize-repo)",
+      "Skill(law-db)"
+    ]
+  }
+}

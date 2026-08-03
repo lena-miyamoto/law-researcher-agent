@@ -1,0 +1,33 @@
+extensions:
+  front-matter:
+    enabled: true
+  markdown-tables:
+    enabled: true
+
+plugins:
+  line-length:
+    enabled: true
+    line_length: 9999
+    code_blocks: false
+    tables: false
+    table_line_length: 9999
+  no-trailing-spaces:
+    enabled: true
+    br_spaces: 0
+    strict: true
+    list_item_empty_lines: false
+  no-multiple-blanks:
+    enabled: true
+    maximum: 1
+  ul-style:
+    enabled: true
+    style: dash
+  ul-indent:
+    enabled: true
+    indent: 2
+    start_indented: false
+  code-fence-style:
+    enabled: true
+    style: backtick
+  first-line-heading:
+    enabled: false

@@ -1,0 +1,39 @@
+{
+  "$schema": "~/.claude/hooks/tool-permissions/permissions.schema.json",
+  "version": 1,
+  "allow": {
+    "WebFetch": [
+      "^https://eur-lex\\.europa\\.eu(/|$)",
+      "^https://www\\.ris\\.bka\\.gv\\.at(/|$)",
+      "^https://scholar\\.google\\.com(/|$)",
+      "^https://doaj\\.org(/|$)",
+      "^https://opensciencedirectory\\.net(/|$)",
+      "^https://doi\\.org(/|$)",
+      "^https://www\\.gesetze-im-internet\\.de(/|$)",
+      "^https://www\\.legislation\\.gov\\.uk(/|$)"
+    ],
+    "Skill": [
+      "^compress-skill$",
+      "^optimize-repo$",
+      "^law-db$"
+    ],
+    "Bash": [
+      "^curl -s [\"']https://eur-lex\\.europa\\.eu/",
+      "^curl -s [\"']https://www\\.ris\\.bka\\.gv\\.at/",
+      "^curl -s [\"']https://scholar\\.google\\.com/",
+      "^curl -s [\"']https://doaj\\.org/",
+      "^curl -s [\"']https://opensciencedirectory\\.net/",
+      "^curl -s [\"']https://doi\\.org/",
+      "^curl -s [\"']https://www\\.gesetze-im-internet\\.de/",
+      "^curl -s [\"']https://www\\.legislation\\.gov\\.uk/",
+      "^uv run law-db(\\s|$)",
+      "^uv run law-db-lookup(\\s|$)",
+      "^uv run law-db-query(\\s|$)",
+      "^uv run law-db-integrity-check(\\s|$)",
+      "^uv run lint-md(\\s|$)",
+      "^uv run test(\\s|$)",
+      "^python3? -m json\\.tool(\\s|$)",
+      "^html2text(\\s|$)"
+    ]
+  }
+}

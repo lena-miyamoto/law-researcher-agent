@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "law-researcher-agent"
+version = "0.1.0"
+description = "Reusable legal research agent configuration for Claude Code."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+law-db = "entrypoints:law_db"
+law-db-lookup = "entrypoints:law_db_lookup"
+law-db-query = "entrypoints:law_db_query"
+law-db-integrity-check = "entrypoints:law_db_integrity_check"
+lint-md = "entrypoints:lint_md"
+test = "entrypoints:test"
+
+[tool.setuptools]
+py-modules = ["entrypoints"]
+
+[tool.setuptools.package-dir]
+"" = ".claude/scripts"
+
+[dependency-groups]
+dev = [
+    "pymarkdownlnt>=0.9.38",
+    "pytest>=9.0.3",
+]
