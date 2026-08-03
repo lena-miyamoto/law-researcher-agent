@@ -113,6 +113,7 @@ BGBl. 1979/140. Anwendbar auf Verbraucherverträge (B2C).
 |---|---|---|---|
 | `durchblicker.at` | Vergleichsportal | Gut — marktübliche Tarife; provisionsbasiertes Geschäftsmodell | Mittel — nicht alle Versicherer gelistet; Provisionshöhe kann Ranking beeinflussen |
 | `fma.gv.at` | Aufsichtsbehörde | Amtlich — höchste Verlässlichkeit | Gering — hoheitliche Quelle |
+| `e-control.at` | Regulierungsbehörde (Energie) | Amtlich — Strom-/Gas-Marktregulierung, Konsumentenschutz, Energiepreisvergleich | Gering — hoheitliche Quelle; relevant für energiebezogene Versicherungsfragen |
 | `versicherungsverband.at` | Branchenverband | Gut — Branchenstatistiken | Mittel — Branchensicht; kann Verbraucherperspektive untergewichten |
 | `eiopa.europa.eu` | EU-Aufsichtsbehörde | Amtlich — grenzüberschreitende Vergleiche | Gering |
 | `sozialversicherung.at` | Sozialversicherung | Amtlich — Pflichtversicherungsinformation | Gering — relevant für Abgrenzung privat/gesetzlich |
