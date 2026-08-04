@@ -132,7 +132,23 @@ uv sync             # create venv + install dependencies
 
 ### 4. Model provider (DeepSeek)
 
-Set the base URL and API key. Replace `<your-key>` with your provider key.
+#### Create an account
+
+Sign up at [platform.deepseek.com/sign_up](https://platform.deepseek.com/sign_up).
+You can register with an email address, a Google account, or a GitHub account.
+
+#### Get an API key
+
+After signing in, go to [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
+and click **"Create new API key"**. Give it a name and copy the key — it is shown
+only once. Do not share the key or commit it to version control.
+
+DeepSeek's API is pay-as-you-go. New accounts typically receive free credits to
+start. Top up on the [billing page](https://platform.deepseek.com/top_up) if needed.
+
+#### Configure Claude Code
+
+Set the base URL and API key. Replace `<your-key>` with the key from the step above.
 
 ```bash
 export DEEPSEEK_API_KEY="<your-key>"
