@@ -2,8 +2,27 @@
   "permissions": {
     "allow": [
       "Skill(compress-skill)",
+      "Skill(explain-law)",
+      "Skill(law-db)",
       "Skill(optimize-repo)",
-      "Skill(law-db)"
+      "WebFetch(domain:eur-lex.europa.eu)",
+      "WebFetch(domain:www.ris.bka.gv.at)",
+      "WebFetch(domain:www.fma.gv.at)",
+      "WebFetch(domain:www.durchblicker.at)",
+      "WebFetch(domain:www.versicherungsverband.at)",
+      "WebFetch(domain:www.eiopa.europa.eu)",
+      "WebFetch(domain:www.sozialversicherung.at)",
+      "WebFetch(domain:www.gv.at)",
+      "Bash(uv run law-db *)",
+      "Bash(uv run law-db-contract *)",
+      "Bash(uv run law-db-integrity-check *)",
+      "Bash(uv run law-db-lookup *)",
+      "Bash(uv run law-db-query *)",
+      "Bash(uv run law-db-receipt *)",
+      "Bash(uv run lint-md *)",
+      "Bash(uv run test *)",
+      "Bash(python3 -m json.tool *)",
+      "Bash(html2text *)"
     ]
   }
 }
