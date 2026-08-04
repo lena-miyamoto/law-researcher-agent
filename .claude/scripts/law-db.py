@@ -9,7 +9,6 @@ import datetime
 import html
 import json
 import re
-import shutil
 import sys
 import urllib.parse
 from pathlib import Path
@@ -30,8 +29,9 @@ DEFAULT_WEB_PURPOSE = "Archived web source; review and refine purpose."
 DEFAULT_TOPIC = "uncategorized"
 
 
-# Re-export canonical slugify for convenience
+# Re-export canonical utilities for convenience
 slugify = utils.slugify
+validate_topic_slug = utils.validate_topic_slug
 
 
 def unique_filename(directory, stem, suffix):
@@ -55,14 +55,6 @@ def save_text(path, content):
 def ensure_law_db_structure(law_db):
     for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts", "receipts"):
         (law_db / name).mkdir(parents=True, exist_ok=True)
-
-
-def validate_topic_slug(topic):
-    if not topic or topic in {".", ".."} or "/" in topic or "\\" in topic:
-        raise ValueError(f"invalid topic slug: {topic!r}")
-    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", topic):
-        raise ValueError(f"invalid topic slug: {topic!r}; expected kebab-case ASCII")
-    return topic
 
 
 def source_label(source_name):
@@ -169,12 +161,16 @@ def collect_index_data(law_db):
         for meta_path in sorted(documents_dir.rglob("metadata.json")):
             document_dir = meta_path.parent
             rel_dir = str(document_dir.relative_to(law_db))
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                meta = {}
             documents.append({
                 "path": rel_dir,
-                "identifier": "Review and refine identifier.",
-                "url": "URL unavailable; review and refine.",
-                "purpose": DEFAULT_DOCUMENT_PURPOSE,
-                "accessed": today,
+                "identifier": meta.get("url") or meta.get("identifier") or "Review and refine identifier.",
+                "url": meta.get("url") or "URL unavailable; review and refine.",
+                "purpose": meta.get("purpose") or DEFAULT_DOCUMENT_PURPOSE,
+                "accessed": meta.get("access_date") or today,
             })
 
     # Fulltext
@@ -183,12 +179,16 @@ def collect_index_data(law_db):
         for meta_path in sorted(fulltext_dir.rglob("metadata.json")):
             ft_dir = meta_path.parent
             rel_dir = str(ft_dir.relative_to(law_db))
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                meta = {}
             fulltexts.append({
                 "path": rel_dir,
-                "identifier": "Review and refine identifier.",
-                "url": "URL unavailable; review and refine.",
-                "purpose": DEFAULT_DOCUMENT_PURPOSE,
-                "accessed": today,
+                "identifier": meta.get("url") or meta.get("identifier") or "Review and refine identifier.",
+                "url": meta.get("url") or "URL unavailable; review and refine.",
+                "purpose": meta.get("purpose") or DEFAULT_DOCUMENT_PURPOSE,
+                "accessed": meta.get("access_date") or today,
             })
 
     # Guidelines
@@ -229,13 +229,17 @@ def collect_index_data(law_db):
         for meta_path in sorted(contracts_dir.rglob("metadata.json")):
             contract_dir = meta_path.parent
             rel_dir = str(contract_dir.relative_to(law_db))
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                meta = {}
             contracts.append({
                 "path": rel_dir,
-                "identifier": "Review and refine identifier.",
-                "type": "contract",
-                "title": "Review and refine title.",
-                "purpose": "Review and refine purpose.",
-                "accessed": today,
+                "identifier": meta.get("url") or meta.get("identifier") or "Review and refine identifier.",
+                "type": meta.get("type") or "contract",
+                "title": meta.get("title") or "Review and refine title.",
+                "purpose": meta.get("purpose") or "Review and refine purpose.",
+                "accessed": meta.get("access_date") or today,
             })
 
     # Receipts
@@ -245,14 +249,18 @@ def collect_index_data(law_db):
         for meta_path in sorted(receipts_dir.rglob("metadata.json")):
             receipt_dir = meta_path.parent
             rel_dir = str(receipt_dir.relative_to(law_db))
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                meta = {}
             receipts.append({
                 "path": rel_dir,
-                "identifier": "Review and refine identifier.",
-                "subtype": "receipt",
-                "title": "Review and refine title.",
-                "tax_category": "other",
-                "purpose": "Review and refine purpose.",
-                "accessed": today,
+                "identifier": meta.get("url") or meta.get("identifier") or "Review and refine identifier.",
+                "subtype": meta.get("subtype") or "receipt",
+                "title": meta.get("title") or "Review and refine title.",
+                "tax_category": meta.get("tax_category") or "other",
+                "purpose": meta.get("purpose") or "Review and refine purpose.",
+                "accessed": meta.get("access_date") or today,
             })
 
     return searches, documents, fulltexts, guidelines, web_sources, contracts, receipts
@@ -348,11 +356,28 @@ def archive_web_query(args, law_db, topic):
     return web_file, target_url
 
 
-def archive_url(args, law_db, topic):
-    """Archive a document from a URL."""
+def _extract_title_from_html(raw_html, url):
+    """Extract a title from HTML content — ``<title>``, first ``<h1>``, or URL fallback."""
+    import re as _re
+
+    match = _re.search(r"<title[^>]*>(.*?)</title>", raw_html, _re.IGNORECASE | _re.DOTALL)
+    if match:
+        title = utils._strip_html(match.group(1)).strip()
+        if title:
+            return title
+    match = _re.search(r"<h1[^>]*>(.*?)</h1>", raw_html, _re.IGNORECASE | _re.DOTALL)
+    if match:
+        title = utils._strip_html(match.group(1)).strip()
+        if title:
+            return title
+    return f"Document from {url}"
+
+
+def archive_url(url, law_db, topic, fetch_func=None):
+    """Archive a document from *url* — fetch, store full text, extract metadata."""
     topic_dir = law_db / "documents" / topic
     topic_dir.mkdir(parents=True, exist_ok=True)
-    document_slug = slugify(args.archive_url, fallback="document", max_length=60)
+    document_slug = slugify(url, fallback="document", max_length=60)
     folder_name = f"url-{document_slug}"
     document_dir = topic_dir / folder_name
     if document_dir.exists():
@@ -361,24 +386,60 @@ def archive_url(args, law_db, topic):
     document_dir.mkdir(parents=True, exist_ok=True)
 
     today = datetime.date.today().isoformat()
+    fetch = fetch_func if fetch_func is not None else utils.fetch_url
+
+    try:
+        raw_content = fetch(url)
+    except RuntimeError as exc:
+        raw_content = None
+        fetch_error = str(exc)
+
+    if raw_content is not None:
+        looks_html = raw_content.strip()[:500].lower()
+        if looks_html.startswith("<!doctype html") or looks_html.startswith("<html") or "<html" in looks_html:
+            text_content = utils._strip_html(raw_content)
+            content_type = "text/html"
+        else:
+            text_content = raw_content
+            content_type = "text/plain"
+
+        source_file = document_dir / "source.md"
+        save_text(source_file, text_content)
+
+        title = _extract_title_from_html(raw_content, url) if content_type == "text/html" else f"Document from {url}"
+        abstract = text_content.strip()[:500]
+        if len(text_content.strip()) > 500:
+            abstract += "\n[...]"
+
+        has_fulltext = True
+        content_length = len(raw_content)
+    else:
+        content_type = "unknown"
+        title = "Review and refine title."
+        abstract = f"Content archived from: {url}\nAccess date: {today}\nFetch error: {fetch_error}\nReview and refine.\n"
+        has_fulltext = False
+        content_length = 0
+
     metadata = {
         "source": "web",
-        "url": args.archive_url,
+        "url": url,
         "access_date": today,
-        "title": "Review and refine title.",
+        "title": title,
+        "content_type": content_type,
+        "content_length": content_length,
+        "has_fulltext": has_fulltext,
     }
+    if raw_content is None:
+        metadata["fetch_error"] = fetch_error
+
     metadata_file = document_dir / "metadata.json"
     abstract_file = document_dir / "abstract.txt"
     save_text(metadata_file, json.dumps(metadata, indent=2, ensure_ascii=False) + "\n")
-    save_text(abstract_file, f"Content archived from: {args.archive_url}\nAccess date: {today}\nReview and refine.\n")
+    save_text(abstract_file, abstract)
 
-    return metadata_file, abstract_file, args.archive_url
+    return metadata_file, abstract_file, url
 
 
-def copy2_verified(source, destination):
-    shutil.copy2(source, destination)
-    if source.stat().st_size != destination.stat().st_size:
-        raise OSError(f"copy size mismatch: {source} -> {destination}")
 
 
 # ---------------------------------------------------------------------------
@@ -410,10 +471,10 @@ def migrate_flat_to_topic(law_db, dry_run=False):
                 continue
             dest_dir.mkdir(parents=True, exist_ok=True)
             try:
-                copy2_verified(meta_path, dest_dir / "metadata.json")
+                utils.copy_file_verified(meta_path, dest_dir / "metadata.json")
                 abstract_path = paper_dir / "abstract.txt"
                 if abstract_path.is_file():
-                    copy2_verified(abstract_path, dest_dir / "abstract.txt")
+                    utils.copy_file_verified(abstract_path, dest_dir / "abstract.txt")
                 else:
                     (dest_dir / "abstract.txt").write_text("Abstract not found in old location.\n", encoding="utf-8")
                 migrated += 1
@@ -435,9 +496,9 @@ def migrate_flat_to_topic(law_db, dry_run=False):
                 continue
             topic_dir.mkdir(parents=True, exist_ok=True)
             try:
-                copy2_verified(meta_path, topic_dir / "metadata.json")
+                utils.copy_file_verified(meta_path, topic_dir / "metadata.json")
                 if abstract_path.is_file():
-                    copy2_verified(abstract_path, topic_dir / "abstract.txt")
+                    utils.copy_file_verified(abstract_path, topic_dir / "abstract.txt")
                 else:
                     (topic_dir / "abstract.txt").write_text("Abstract not found in old flat abstracts/ directory.\n", encoding="utf-8")
                 migrated += 1
@@ -458,7 +519,7 @@ def migrate_flat_to_topic(law_db, dry_run=False):
                 continue
             dest_dir.mkdir(parents=True, exist_ok=True)
             try:
-                copy2_verified(search_path, dest_file)
+                utils.copy_file_verified(search_path, dest_file)
                 migrated += 1
             except OSError as exc:
                 errors += 1
@@ -478,7 +539,7 @@ def migrate_flat_to_topic(law_db, dry_run=False):
                 continue
             dest_dir.mkdir(parents=True, exist_ok=True)
             try:
-                copy2_verified(web_path, dest_file)
+                utils.copy_file_verified(web_path, dest_file)
                 migrated += 1
             except OSError as exc:
                 errors += 1
@@ -520,39 +581,15 @@ def parse_args():
         help="Explicit kebab-case slug for the topic folder. Overrides --topic if both are given.",
     )
     parser.add_argument(
-        "--document",
-        action="append",
-        default=[],
-        help="Document identifier to archive. May be passed multiple times.",
-    )
-    parser.add_argument(
         "--archive-url",
         action="append",
         default=[],
         help="URL to archive. May be passed multiple times.",
     )
     parser.add_argument(
-        "--archive-first",
-        type=int,
-        default=0,
-        help="Also archive the first N results returned by --query.",
-    )
-    parser.add_argument(
-        "--retmax",
-        type=int,
-        default=20,
-        help="How many hits to request for the archived search.",
-    )
-    parser.add_argument(
         "--law-db",
         default="law-db",
         help="Target law-db directory. Defaults to ./law-db.",
-    )
-    parser.add_argument(
-        "--delay",
-        type=float,
-        default=0.34,
-        help="Delay between fetches in seconds. Defaults to 0.34.",
     )
     parser.add_argument(
         "--migrate",
@@ -569,14 +606,8 @@ def parse_args():
     if args.migrate or args.migrate_dry_run:
         return args
 
-    if not args.query and not args.document and not args.archive_url:
-        parser.error("provide --query and/or at least one document/URL identifier")
-    if args.archive_first < 0:
-        parser.error("--archive-first must be >= 0")
-    if args.archive_first and not args.query:
-        parser.error("--archive-first requires --query")
-    if args.retmax < 1:
-        parser.error("--retmax must be >= 1")
+    if not args.query and not args.archive_url:
+        parser.error("provide --query and/or --archive-url")
     return args
 
 
@@ -599,7 +630,7 @@ def main():
     law_db.mkdir(parents=True, exist_ok=True)
     ensure_law_db_structure(law_db)
 
-    topic = validate_topic_slug(args.topic_slug or slugify(args.topic, fallback=DEFAULT_TOPIC))
+    topic = utils.validate_topic_slug(args.topic_slug or slugify(args.topic, fallback=DEFAULT_TOPIC))
 
     web_updates = {}
     document_updates = {}
@@ -614,7 +645,7 @@ def main():
         }
 
     for url in args.archive_url:
-        result = archive_url(args, law_db, topic)
+        result = archive_url(url, law_db, topic)
         if result is None:
             continue
         metadata_file, abstract_file, source_url = result

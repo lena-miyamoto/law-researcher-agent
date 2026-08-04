@@ -24,13 +24,6 @@ slugify = utils.slugify
 # ---------------------------------------------------------------------------
 
 
-def _read_json(path):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
-        print(f"error reading {path}: {exc}", file=sys.stderr)
-        return None
-
 
 def _read_json_with_error(path):
     try:
@@ -230,6 +223,17 @@ def read_document_abstract(document_dir):
         return f"Could not read abstract: {exc}"
 
 
+def read_document_fulltext(document_dir):
+    """Read the source.md from a document directory."""
+    source_path = Path(document_dir) / "source.md"
+    if not source_path.is_file():
+        return None
+    try:
+        return source_path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        return f"Could not read full text: {exc}"
+
+
 def recent_documents(law_db, count=10):
     """List the most recently added documents from index.json."""
     index_path = law_db / "index.json"
@@ -358,6 +362,11 @@ def _format_text(result, command):
             lines.append("")
             lines.append("Abstract:")
             lines.extend(utils.wrap_text(abstract))
+        fulltext = result.get("fulltext")
+        if fulltext:
+            lines.append("")
+            lines.append("Full Text:")
+            lines.extend(utils.wrap_text(fulltext))
         return "\n".join(lines)
 
     if command == "search-keyword":
@@ -441,6 +450,11 @@ def parse_args():
         help="Include abstract text with --read-metadata output.",
     )
     parser.add_argument(
+        "--show-fulltext",
+        action="store_true",
+        help="Include full text (source.md) with --read-metadata output.",
+    )
+    parser.add_argument(
         "--summary",
         action="store_true",
         help="Compact output for --search-keyword (identifiers and titles only, no snippets).",
@@ -474,6 +488,10 @@ def main():
         result = read_document_metadata(args.read_metadata)
         if args.show_abstract and "error" not in result:
             result["abstract"] = read_document_abstract(args.read_metadata)
+        if args.show_fulltext and "error" not in result:
+            fulltext = read_document_fulltext(args.read_metadata)
+            if fulltext is not None:
+                result["fulltext"] = fulltext
     elif args.search_keyword:
         command = "search-keyword"
         matches = search_keyword(law_db, args.search_keyword, topic=args.search_topic)

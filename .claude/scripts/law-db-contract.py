@@ -8,11 +8,14 @@ templates are stored under law-db/contracts/<topic>/<identifier-slug>/.
 import argparse
 import datetime
 import json
-import shutil
 import sys
 from pathlib import Path
 
 import utils
+
+# Re-export canonical utilities for convenience
+unique_folder_name = utils.unique_folder_name
+validate_topic_slug = utils.validate_topic_slug
 
 DEFAULT_TOPIC = "uncategorized"
 DEFAULT_PURPOSE = "Archived via law-db-contract; review and refine purpose."
@@ -43,40 +46,11 @@ def validate_insurance_type(value):
     return value
 
 
-def validate_topic_slug(topic):
-    import re
-    if not topic or topic in {".", ".."} or "/" in topic or "\\" in topic:
-        raise ValueError(f"invalid topic slug: {topic!r}")
-    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", topic):
-        raise ValueError(f"invalid topic slug: {topic!r}; expected kebab-case ASCII")
-    return topic
-
-
-def unique_folder_name(directory, stem):
-    """Return *stem*, or *stem*-2, *stem*-3, ... if already taken."""
-    candidate = stem
-    target = directory / candidate
-    if not target.exists():
-        return candidate
-    counter = 2
-    while True:
-        candidate = f"{stem}-{counter}"
-        if not (directory / candidate).exists():
-            return candidate
-        counter += 1
-
-
-def copy_file_verified(source, destination):
-    """Copy *source* to *destination* and verify sizes match."""
-    shutil.copy2(source, destination)
-    if source.stat().st_size != destination.stat().st_size:
-        raise OSError(f"copy size mismatch: {source} -> {destination}")
-
 
 def archive_contract_pdf(pdf_path, contract_dir, metadata):
     """Copy PDF into *contract_dir*/source.pdf and extract source.md."""
     destination_pdf = contract_dir / "source.pdf"
-    copy_file_verified(pdf_path, destination_pdf)
+    utils.copy_file_verified(pdf_path, destination_pdf)
 
     raw_bytes = pdf_path.read_bytes()
     if not utils.content_is_pdf(raw_bytes):
@@ -96,7 +70,7 @@ def archive_contract_pdf(pdf_path, contract_dir, metadata):
 def archive_contract_markdown(markdown_path, contract_dir, metadata):
     """Copy Markdown into *contract_dir*/source.md."""
     destination_markdown = contract_dir / "source.md"
-    copy_file_verified(markdown_path, destination_markdown)
+    utils.copy_file_verified(markdown_path, destination_markdown)
     metadata["has_markdown"] = True
 
 
@@ -224,7 +198,7 @@ def main():
     for name in ("searches", "documents", "fulltext", "guidelines", "web", "contracts"):
         (law_db_path / name).mkdir(parents=True, exist_ok=True)
 
-    topic = validate_topic_slug(
+    topic = utils.validate_topic_slug(
         args.topic_slug or utils.slugify(args.topic, fallback=DEFAULT_TOPIC)
     )
 
@@ -234,7 +208,7 @@ def main():
 
     contracts_dir = law_db_path / "contracts" / topic
     contracts_dir.mkdir(parents=True, exist_ok=True)
-    folder_name = unique_folder_name(contracts_dir, identifier_slug)
+    folder_name = utils.unique_folder_name(contracts_dir, identifier_slug)
     contract_dir = contracts_dir / folder_name
     contract_dir.mkdir(parents=True, exist_ok=True)
 
@@ -290,19 +264,7 @@ def main():
         },
     }
 
-    # Load law_db module via importlib (matching conftest.py / entrypoints.py pattern)
-    import importlib.util
-
-    if "law_db" not in sys.modules:
-        spec = importlib.util.spec_from_file_location(
-            "law_db", Path(__file__).parent / "law-db.py"
-        )
-        if spec is None or spec.loader is None:
-            raise RuntimeError("could not load law-db.py spec")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules["law_db"] = module
-        spec.loader.exec_module(module)
-
+    utils.ensure_law_db_loaded()
     import law_db
     law_db.sync_index(law_db_path, contract_updates=contract_updates)
 

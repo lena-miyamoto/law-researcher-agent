@@ -60,10 +60,9 @@ def lint_md(args=None):
     if args is None:
         args = sys.argv[1:]
 
-    fix_mode = False
-    if "--fix" in args:
-        args.remove("--fix")
-        fix_mode = True
+    original_count = len(args)
+    args = [a for a in args if a != "--fix"]
+    fix_mode = len(args) != original_count
 
     if not args:
         repo_root = Path(__file__).resolve().parent.parent.parent

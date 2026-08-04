@@ -69,6 +69,68 @@ def atomic_write(path, content):
 
 
 # ---------------------------------------------------------------------------
+# Filesystem helpers
+# ---------------------------------------------------------------------------
+
+
+def validate_topic_slug(topic):
+    """Return *topic* if it is a valid kebab-case ASCII slug, otherwise raise."""
+    if not topic or topic in {".", ".."} or "/" in topic or "\\" in topic:
+        raise ValueError(f"invalid topic slug: {topic!r}")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", topic):
+        raise ValueError(f"invalid topic slug: {topic!r}; expected kebab-case ASCII")
+    return topic
+
+
+def unique_folder_name(directory, stem):
+    """Return *stem*, or *stem*-2, *stem*-3, ... if already taken."""
+    candidate = stem
+    if not (directory / candidate).exists():
+        return candidate
+    counter = 2
+    while True:
+        candidate = f"{stem}-{counter}"
+        if not (directory / candidate).exists():
+            return candidate
+        counter += 1
+
+
+def copy_file_verified(source, destination):
+    """Copy *source* to *destination* and verify sizes match.
+
+    Uses :func:`shutil.copy2` to preserve metadata.
+    """
+    import shutil
+
+    shutil.copy2(source, destination)
+    if source.stat().st_size != destination.stat().st_size:
+        raise OSError(f"copy size mismatch: {source} -> {destination}")
+
+
+def ensure_law_db_loaded():
+    """Load the ``law_db`` module via importlib if not already in ``sys.modules``.
+
+    After calling this, ``import law_db`` will find the module in the cache.
+    Used by scripts that call ``law_db.sync_index()`` without going through
+    the ``law-db`` entry point.
+    """
+    import importlib.util
+    import sys as _sys
+
+    if "law_db" in _sys.modules:
+        return
+
+    spec = importlib.util.spec_from_file_location(
+        "law_db", Path(__file__).parent / "law-db.py"
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("could not load law-db.py spec")
+    module = importlib.util.module_from_spec(spec)
+    _sys.modules["law_db"] = module
+    spec.loader.exec_module(module)
+
+
+# ---------------------------------------------------------------------------
 # Fetch helper
 # ---------------------------------------------------------------------------
 
@@ -159,13 +221,7 @@ def parse_csv_rows(file_path, delimiter=",", encoding="utf-8"):
             return []
         rows = []
         for row in reader:
-            values = []
-            for value in row.values():
-                if isinstance(value, list):
-                    values.extend(value)
-                elif value is not None:
-                    values.append(value)
-            if any(v.strip() for v in values if isinstance(v, str)):
+            if any(value.strip() for value in row.values() if isinstance(value, str)):
                 rows.append(row)
         return rows
 
