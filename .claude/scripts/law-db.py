@@ -397,7 +397,7 @@ def archive_url(url, law_db, topic, fetch_func=None):
     if raw_content is not None:
         looks_html = raw_content.strip()[:500].lower()
         if looks_html.startswith("<!doctype html") or looks_html.startswith("<html") or "<html" in looks_html:
-            text_content = utils._strip_html(raw_content)
+            text_content = utils.extract_main_content(raw_content, url)
             content_type = "text/html"
         else:
             text_content = raw_content
@@ -407,16 +407,12 @@ def archive_url(url, law_db, topic, fetch_func=None):
         save_text(source_file, text_content)
 
         title = _extract_title_from_html(raw_content, url) if content_type == "text/html" else f"Document from {url}"
-        abstract = text_content.strip()[:500]
-        if len(text_content.strip()) > 500:
-            abstract += "\n[...]"
 
         has_fulltext = True
         content_length = len(raw_content)
     else:
         content_type = "unknown"
         title = "Review and refine title."
-        abstract = f"Content archived from: {url}\nAccess date: {today}\nFetch error: {fetch_error}\nReview and refine.\n"
         has_fulltext = False
         content_length = 0
 
@@ -433,11 +429,9 @@ def archive_url(url, law_db, topic, fetch_func=None):
         metadata["fetch_error"] = fetch_error
 
     metadata_file = document_dir / "metadata.json"
-    abstract_file = document_dir / "abstract.txt"
     save_text(metadata_file, json.dumps(metadata, indent=2, ensure_ascii=False) + "\n")
-    save_text(abstract_file, abstract)
 
-    return metadata_file, abstract_file, url
+    return metadata_file, url
 
 
 
@@ -448,12 +442,11 @@ def archive_url(url, law_db, topic, fetch_func=None):
 
 
 def migrate_flat_to_topic(law_db, dry_run=False):
-    """Migrate old flat metadata/ and abstracts/ into documents/_migrated/."""
+    """Migrate old flat metadata/ into documents/_migrated/."""
     migrated = 0
     errors = 0
 
     old_metadata = law_db / "metadata"
-    old_abstracts = law_db / "abstracts"
     old_searches = law_db / "searches"
     old_papers = law_db / "papers"
 
@@ -472,21 +465,15 @@ def migrate_flat_to_topic(law_db, dry_run=False):
             dest_dir.mkdir(parents=True, exist_ok=True)
             try:
                 utils.copy_file_verified(meta_path, dest_dir / "metadata.json")
-                abstract_path = paper_dir / "abstract.txt"
-                if abstract_path.is_file():
-                    utils.copy_file_verified(abstract_path, dest_dir / "abstract.txt")
-                else:
-                    (dest_dir / "abstract.txt").write_text("Abstract not found in old location.\n", encoding="utf-8")
                 migrated += 1
             except OSError as exc:
                 errors += 1
                 print(f"error migrating {paper_dir}: {exc}", file=sys.stderr)
 
-    # Migrate old metadata/abstracts flat structure
+    # Migrate old metadata/ flat structure
     if old_metadata.is_dir():
         for meta_path in sorted(old_metadata.glob("*.json")):
             stem = meta_path.stem
-            abstract_path = old_abstracts / f"{stem}.txt"
             topic_dir = law_db / "documents" / "_migrated" / stem
             if topic_dir.exists():
                 continue
@@ -497,10 +484,6 @@ def migrate_flat_to_topic(law_db, dry_run=False):
             topic_dir.mkdir(parents=True, exist_ok=True)
             try:
                 utils.copy_file_verified(meta_path, topic_dir / "metadata.json")
-                if abstract_path.is_file():
-                    utils.copy_file_verified(abstract_path, topic_dir / "abstract.txt")
-                else:
-                    (topic_dir / "abstract.txt").write_text("Abstract not found in old flat abstracts/ directory.\n", encoding="utf-8")
                 migrated += 1
             except OSError as exc:
                 errors += 1
@@ -648,7 +631,7 @@ def main():
         result = archive_url(url, law_db, topic)
         if result is None:
             continue
-        metadata_file, abstract_file, source_url = result
+        metadata_file, source_url = result
         document_updates[str(metadata_file.parent.relative_to(law_db))] = {
             "identifier": source_url,
             "url": source_url,

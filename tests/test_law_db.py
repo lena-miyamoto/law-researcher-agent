@@ -189,7 +189,7 @@ def _fake_fetch_html(url):
 <body>
   <h1>Test Law Document</h1>
   <p>This is the full text of a test legal document for archival verification.</p>
-  <p>It contains multiple paragraphs to ensure the abstract truncation works correctly.</p>
+  <p>It contains multiple paragraphs for content verification.</p>
 </body>
 </html>"""
 
@@ -210,9 +210,8 @@ class TestArchiveUrl:
         law_db.ensure_law_db_structure(tmp_path)
         result = law_db.archive_url(TEST_URL, tmp_path, "test-topic", fetch_func=_fake_fetch_html)
         assert result is not None
-        metadata_file, abstract_file, source_url = result
+        metadata_file, source_url = result
         assert metadata_file.is_file()
-        assert abstract_file.is_file()
         meta = json.loads(metadata_file.read_text())
         assert meta["url"] == TEST_URL
         assert meta["has_fulltext"] is True
@@ -222,27 +221,17 @@ class TestArchiveUrl:
     def test_stores_full_text(self, tmp_path):
         law_db.ensure_law_db_structure(tmp_path)
         result = law_db.archive_url(TEST_URL, tmp_path, "test-topic", fetch_func=_fake_fetch_html)
-        metadata_file, abstract_file, source_url = result
+        metadata_file, source_url = result
         source_file = metadata_file.parent / "source.md"
         assert source_file.is_file()
         content = source_file.read_text()
         assert "full text of a test legal document" in content
         assert "<html" not in content  # HTML stripped
 
-    def test_abstract_generated_and_truncated(self, tmp_path):
-        # Use long content to verify truncation
-        long_text = "x" * 600
-        law_db.ensure_law_db_structure(tmp_path)
-        result = law_db.archive_url(TEST_URL, tmp_path, "test-topic", fetch_func=lambda u: long_text)
-        metadata_file, abstract_file, source_url = result
-        abstract = abstract_file.read_text()
-        assert "[...]" in abstract
-        assert abstract.startswith("x" * 500)
-
     def test_handles_plain_text(self, tmp_path):
         law_db.ensure_law_db_structure(tmp_path)
         result = law_db.archive_url(TEST_URL, tmp_path, "test-topic", fetch_func=_fake_fetch_plain)
-        metadata_file, abstract_file, source_url = result
+        metadata_file, source_url = result
         meta = json.loads(metadata_file.read_text())
         assert meta["content_type"] == "text/plain"
         source_file = metadata_file.parent / "source.md"
@@ -252,13 +241,11 @@ class TestArchiveUrl:
         law_db.ensure_law_db_structure(tmp_path)
         result = law_db.archive_url("https://example.com/broken", tmp_path, "test-topic", fetch_func=_fake_fetch_fails)
         assert result is not None  # Still returns — stores stub
-        metadata_file, abstract_file, source_url = result
+        metadata_file, source_url = result
         meta = json.loads(metadata_file.read_text())
         assert meta["has_fulltext"] is False
         assert "fetch_error" in meta
         assert "simulated network failure" in meta["fetch_error"]
-        abstract = abstract_file.read_text()
-        assert "simulated network failure" in abstract
         source_file = metadata_file.parent / "source.md"
         assert not source_file.is_file()  # No source.md on failure
 
@@ -267,7 +254,7 @@ class TestArchiveUrl:
         no_title_html = "<html><body><h1>Second Title</h1><p>Content.</p></body></html>"
         law_db.ensure_law_db_structure(tmp_path)
         result = law_db.archive_url(TEST_URL, tmp_path, "test-topic", fetch_func=lambda u: no_title_html)
-        metadata_file, abstract_file, source_url = result
+        metadata_file, source_url = result
         meta = json.loads(metadata_file.read_text())
         assert meta["title"] == "Second Title"
 

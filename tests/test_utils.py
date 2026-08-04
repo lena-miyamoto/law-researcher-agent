@@ -177,6 +177,193 @@ class TestStripHtml:
     def test_nested_tags(self):
         assert utils._strip_html("<div><p>text</p></div>") == "text"
 
+    def test_removes_script_block_and_content(self):
+        assert utils._strip_html(
+            '<script>var x = "secret";</script><p>Hello</p>'
+        ) == "Hello"
+
+    def test_removes_style_block_and_content(self):
+        assert utils._strip_html(
+            "<style>body{color:red}</style><p>Visible</p>"
+        ) == "Visible"
+
+    def test_removes_script_with_attributes(self):
+        assert utils._strip_html(
+            '<script type="text/javascript" src="app.js">var x = 1;</script><p>Text</p>'
+        ) == "Text"
+
+    def test_script_and_style_removed_together(self):
+        assert utils._strip_html(
+            "<script>JS</script><style>CSS</style><p>Content</p>"
+        ) == "Content"
+
+    def test_multiline_script_removed(self):
+        assert utils._strip_html(
+            "<script>\nvar a = 1;\nvar b = 2;\n</script>\n<p>Text</p>"
+        ) == "Text"
+
+    def test_multiline_style_removed(self):
+        assert utils._strip_html(
+            "<style>\n.body { color: red; }\n</style>\n<p>Text</p>"
+        ) == "Text"
+
+    def test_case_insensitive_script_removal(self):
+        assert utils._strip_html(
+            "<SCRIPT>var x = 1;</SCRIPT><p>Text</p>"
+        ) == "Text"
+
+    def test_real_eurlex_javascript(self):
+        """Simulates the real-world EUR-Lex JS payload that leaked into source.md."""
+        assert utils._strip_html(
+            '<script>(function(w,d,u){w.readyQ=[];})(window,document)</script>'
+            '<p>Judgment of the Court</p>'
+        ) == "Judgment of the Court"
+
+
+# ---------------------------------------------------------------------------
+# extract_main_content
+# ---------------------------------------------------------------------------
+
+
+class TestExtractMainContent:
+    def test_extracts_from_eurlex_document1(self):
+        html = (
+            '<html><head><title>Test</title></head><body>'
+            '<nav>Skip to main content Log in Menu</nav>'
+            '<div id="document1" class="tabContent">'
+            '<div class="tabContent"><div lang="">'
+            '<p>JUDGMENT OF THE COURT (Second Chamber)</p>'
+            '<p>12 March 2026</p>'
+            '<p>Article 21 TFEU precludes legislation of a Member State...</p>'
+            '</div></div></div>'
+            '<footer>Contact the EU</footer>'
+            '</body></html>'
+        )
+        result = utils.extract_main_content(html)
+        assert "JUDGMENT OF THE COURT" in result
+        assert "Article 21 TFEU" in result
+        assert "Skip to main content" not in result
+        assert "Contact the EU" not in result
+
+    def test_extracts_from_article_tag(self):
+        html = (
+            '<html><body>'
+            '<nav>Navigation</nav>'
+            '<article><p>Main article content here.</p></article>'
+            '<footer>Footer</footer>'
+            '</body></html>'
+        )
+        result = utils.extract_main_content(html)
+        assert "Main article content" in result
+        assert "Navigation" not in result
+        assert "Footer" not in result
+
+    def test_extracts_from_main_tag(self):
+        html = (
+            '<html><body>'
+            '<header>Header navigation bar</header>'
+            '<main><p>Primary content that is the main text of the page.</p></main>'
+            '<aside>Sidebar with related links</aside>'
+            '</body></html>'
+        )
+        result = utils.extract_main_content(html)
+        assert "Primary content that is the main text" in result
+        assert "Header navigation" not in result
+        assert "Sidebar with related links" not in result
+
+    def test_extracts_from_role_main(self):
+        html = (
+            '<html><body>'
+            '<div role="banner">Site banner with logo and search</div>'
+            '<div role="main"><p>Role-based content that should be extracted.</p></div>'
+            '</body></html>'
+        )
+        result = utils.extract_main_content(html)
+        assert "Role-based content that should be extracted" in result
+        assert "Site banner" not in result
+
+    def test_removes_script_and_style_blocks(self):
+        html = (
+            '<html><body>'
+            '<script>var x = 1;</script>'
+            '<article><p>Visible content.</p></article>'
+            '<style>.hidden{display:none;}</style>'
+            '</body></html>'
+        )
+        result = utils.extract_main_content(html)
+        assert "var x = 1" not in result
+        assert ".hidden" not in result
+        assert "Visible content" in result
+
+    def test_selector_priority_document1_over_article(self):
+        """When both #document1 and <article> exist, #document1 wins."""
+        html = (
+            '<html><body>'
+            '<article><p>Generic article text.</p></article>'
+            '<div id="document1"><p>Specific document text.</p></div>'
+            '</body></html>'
+        )
+        result = utils.extract_main_content(html)
+        assert "Specific document text" in result
+        assert "Generic article text" not in result
+
+    def test_falls_back_to_strip_html_when_no_selector_matches(self):
+        html = (
+            '<html><body>'
+            '<div><p>Just some text in a div.</p></div>'
+            '</body></html>'
+        )
+        result = utils.extract_main_content(html)
+        assert "Just some text in a div" in result
+
+    def test_empty_input(self):
+        assert utils.extract_main_content("") == ""
+        assert utils.extract_main_content(None) == ""
+
+    def test_ignores_near_empty_containers(self):
+        """Near-empty containers (<20 chars) are rejected, fallback triggered."""
+        html = (
+            '<html><body>'
+            '<article><p>Hi.</p></article>'
+            '<div><p>Fallback content that is long enough to be meaningful and useful.</p></div>'
+            '</body></html>'
+        )
+        result = utils.extract_main_content(html)
+        # <article> has too little text (<20 chars), so fallback grabs everything
+        assert "Fallback content" in result
+        assert "Hi" in result  # included because fallback strips everything
+
+    def test_real_eurlex_structure_extracts_judgment(self):
+        """Simulates actual EUR-Lex markup structure."""
+        html = (
+            '<html><head><title>EUR-Lex - 62024CJ0043</title></head>'
+            '<body>'
+            '<a href="#MainContent">Skip to main content</a>'
+            '<div class="ecl-site-header">Log in My EUR-Lex Sign in Register</div>'
+            '<div>You are here EUROPA EUR-Lex home</div>'
+            '<div>Menu EU law Treaties Case-law</div>'
+            '<div id="MainContent">'
+            '<div class="PageTitle">Document 62024CJ0043</div>'
+            '<div>Text Document information</div>'
+            '<div id="document1" class="tabContent">'
+            '<div class="tabContent"><div lang="">'
+            '<p>Provisional text</p>'
+            '<p>JUDGMENT OF THE COURT (Second Chamber)</p>'
+            '<p>12 March 2026</p>'
+            '<p>1 This request for a preliminary ruling concerns...</p>'
+            '</div></div></div>'
+            '</div>'
+            '<footer>This site is managed by Publications Office</footer>'
+            '</body></html>'
+        )
+        result = utils.extract_main_content(html)
+        assert "JUDGMENT OF THE COURT (Second Chamber)" in result
+        assert "1 This request for a preliminary ruling" in result
+        assert "Skip to main content" not in result
+        assert "Log in" not in result
+        assert "Menu EU law" not in result
+        assert "This site is managed by" not in result
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -487,39 +674,18 @@ class TestCheckDocumentIntegrity:
         doc_dir = tmp_path / "documents" / "datenschutz" / "doc-test-title"
         doc_dir.mkdir()
         (doc_dir / "metadata.json").write_text('{"title": "Test", "source": "web"}')
-        (doc_dir / "abstract.txt").write_text("Abstract content.")
         findings = []
         utils.check_document_integrity(tmp_path, findings)
         assert findings == []
-
-    def test_missing_abstract_txt(self, tmp_path):
-        (tmp_path / "documents" / "datenschutz").mkdir(parents=True)
-        doc_dir = tmp_path / "documents" / "datenschutz" / "doc-test"
-        doc_dir.mkdir()
-        (doc_dir / "metadata.json").write_text('{"title": "Test"}')
-        findings = []
-        utils.check_document_integrity(tmp_path, findings)
-        assert any("missing abstract.txt" in f["description"] for f in findings)
 
     def test_invalid_metadata_json(self, tmp_path):
         (tmp_path / "documents" / "datenschutz").mkdir(parents=True)
         doc_dir = tmp_path / "documents" / "datenschutz" / "doc-test"
         doc_dir.mkdir()
         (doc_dir / "metadata.json").write_text("garbage {{{")
-        (doc_dir / "abstract.txt").write_text("ok")
         findings = []
         utils.check_document_integrity(tmp_path, findings)
         assert any("not valid JSON" in f["description"] for f in findings)
-
-    def test_empty_abstract_content(self, tmp_path):
-        (tmp_path / "documents" / "datenschutz").mkdir(parents=True)
-        doc_dir = tmp_path / "documents" / "datenschutz" / "doc-test"
-        doc_dir.mkdir()
-        (doc_dir / "metadata.json").write_text('{"title": "Test"}')
-        (doc_dir / "abstract.txt").write_text("   ")
-        findings = []
-        utils.check_document_integrity(tmp_path, findings)
-        assert any("only whitespace" in f["description"] for f in findings)
 
 
 # ---------------------------------------------------------------------------
@@ -604,11 +770,10 @@ class TestCheckGuidelineIntegrity:
 class TestCheckLegacyDirs:
     def test_legacy_dirs_present(self, tmp_path):
         (tmp_path / "metadata").mkdir()
-        (tmp_path / "abstracts").mkdir()
         (tmp_path / "papers").mkdir()
         findings = []
         utils.check_legacy_dirs(tmp_path, findings)
-        assert len(findings) == 3
+        assert len(findings) == 2
         assert all(f["severity"] == "warning" for f in findings)
 
     def test_no_legacy_dirs(self, tmp_path):

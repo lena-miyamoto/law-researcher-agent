@@ -176,12 +176,16 @@ After summary, prompt: "Do you have any questions about this case?"
 #### Step S1: Check Local Archive
 
 ```bash
-uv run law-db-query --search-keyword "<law name or abbreviation>"
+uv run law-db-query --search-keyword "<law name or abbreviation>" --exclude-expired
 ```
 
 - Found with full text → read metadata (`--read-metadata --show-abstract`), skip to Step S4
 - Found as metadata stub only → treat as not found, proceed to Step S2
 - Not found → proceed to Step S2
+
+Statutes cached for more than one year are treated as expired and re-fetched.
+Case law (court judgments) does not expire — the one-year rule applies only to
+statutes, which may be amended.
 
 #### Step S2: Search & Fetch
 
@@ -295,7 +299,7 @@ Required: Supporting authority, counter-authority, legal risk assessment.")
 |----------|----------|
 | Law not found | Try alternate names; `WebSearch` for correct identifier; report if still not found |
 | Ambiguous name | List possibilities, explain differences, ask user to clarify |
-| Already archived (full text) | Skip fetch+archive, read from archive, produce summary |
+| Already archived (full text) | Skip fetch+archive, read from archive, produce summary. Re-fetch if statute is cached more than one year (laws may have been amended). |
 | Already archived (stub only) | Treat as not found, fetch full text and re-archive |
 | Very long law (>500 sections) | Summarize structure + key chapters, note that deeper questions welcome |
 | EU directive vs regulation | Clarify: regulations directly applicable; directives require national implementation |
@@ -311,7 +315,7 @@ Required: Supporting authority, counter-authority, legal risk assessment.")
 
 | What | How |
 |------|-----|
-| Check archive | `uv run law-db-query --search-keyword "..."` |
+| Check archive | `uv run law-db-query --search-keyword "..." --exclude-expired` |
 | Read archived | `uv run law-db-query --read-metadata "<path>" --show-abstract` |
 | Archive fetched text | `uv run law-db --archive-url "<url>" --topic "<slug>"` |
 | Austrian law search | `WebFetch` RIS API v2.6 endpoint |

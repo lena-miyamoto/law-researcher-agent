@@ -81,6 +81,7 @@ Query local `law-db/` archive. Exactly one operation flag required (mutually exc
 | `--check-document` | str | Check if a document identifier is already archived |
 | `--read-metadata` | str | Read metadata from a document directory path |
 | `--search-keyword` | str | Search documents by keyword (case-insensitive) |
+| `--exclude-expired` | flag | With `--search-keyword`: omit documents whose `access_date` is older than 365 days. Missing/unparseable dates are retained. |
 | `--recent` | int | List N most recently added documents |
 | `--search-searches` | str | Search archived search queries by keyword (case-insensitive) |
 

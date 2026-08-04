@@ -165,18 +165,67 @@ def fetch_url(url, timeout=60, retries=2, retry_delay=0.25):
 
 
 # ---------------------------------------------------------------------------
-# _strip_html — lightweight HTML → plain-text
+# HTML → plain-text extraction
 # ---------------------------------------------------------------------------
 
 
 def _strip_html(text):
-    """Strip HTML tags, decode entities, collapse whitespace."""
+    """Strip HTML tags, decode entities, collapse whitespace.
+
+    ``<script>`` and ``<style>`` blocks are removed entirely (including their
+    content) — they never contain human-readable text meant for the reader.
+    """
     if not text:
         return ""
+    text = re.sub(r"<script[^>]*>.*?</script>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<[^>]+>", " ", text)
     text = _html.unescape(text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
+
+
+def extract_main_content(raw_html, url=""):
+    """Extract the main content from *raw_html*, excluding navigation, headers,
+    footers, scripts, and styles.
+
+    Uses BeautifulSoup to parse the HTML and tries a sequence of known
+    content selectors.  When no selector matches, falls back to
+    :func:`_strip_html` on the full page.
+
+    Returns plain text with collapsed whitespace.
+    """
+    if not raw_html:
+        return ""
+
+    import bs4
+
+    soup = bs4.BeautifulSoup(raw_html, "html.parser")
+
+    for tag in soup.find_all(["script", "style"]):
+        tag.decompose()
+
+    content_selectors = [
+        # EUR-Lex — document tab content
+        "#document1 .tabContent",
+        "#document1",
+        # Generic semantic elements
+        "article",
+        "main",
+        '[role="main"]',
+    ]
+
+    for selector in content_selectors:
+        element = soup.select_one(selector)
+        if element is None:
+            continue
+        text = element.get_text(separator=" ", strip=True)
+        text = re.sub(r"\s+", " ", text).strip()
+        if len(text) > 20:
+            return text
+
+    return _strip_html(raw_html)
+
 
 
 # ---------------------------------------------------------------------------
@@ -651,19 +700,6 @@ def check_document_integrity(root, findings):
         document_dir = meta_file.parent
         rel_dir = str(document_dir.relative_to(root))
 
-        # abstract.txt
-        abstract_file = document_dir / "abstract.txt"
-        if not abstract_file.is_file():
-            findings.append(
-                finding(
-                    SEVERITY_ERROR,
-                    CATEGORY_METADATA,
-                    rel_dir,
-                    "Document directory is missing abstract.txt.",
-                    "Fetch the abstract or restore from backup.",
-                )
-            )
-
         # Validate metadata.json JSON
         try:
             json.loads(_read_text(meta_file))
@@ -675,33 +711,6 @@ def check_document_integrity(root, findings):
                     f"{rel_dir}/metadata.json",
                     f"metadata.json is not valid JSON: {exc}",
                     "Fix the JSON syntax error or re-fetch the document.",
-                )
-            )
-
-    # Check abstract content (non-empty after stripping)
-    for abs_file in sorted(documents_dir.rglob("abstract.txt")):
-        rel = str(abs_file.relative_to(root))
-        try:
-            content = _read_text(abs_file).strip()
-        except OSError as exc:
-            findings.append(
-                finding(
-                    SEVERITY_ERROR,
-                    CATEGORY_METADATA,
-                    rel,
-                    f"Cannot read abstract.txt: {exc}",
-                    "Check file permissions.",
-                )
-            )
-            continue
-        if not content:
-            findings.append(
-                finding(
-                    SEVERITY_ERROR,
-                    CATEGORY_METADATA,
-                    rel,
-                    "abstract.txt exists but contains only whitespace.",
-                    "Fetch the abstract for this document.",
                 )
             )
 
@@ -1169,7 +1178,7 @@ def check_receipts_integrity(root, findings):
 
 def check_legacy_dirs(root, findings):
     """Warn about old flat directories left over from pre-migration layouts."""
-    for name in ("metadata", "abstracts", "papers"):
+    for name in ("metadata", "papers"):
         legacy = root / name
         if legacy.is_dir():
             findings.append(

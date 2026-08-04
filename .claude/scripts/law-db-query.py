@@ -8,11 +8,14 @@ All operations are read-only filesystem queries. No network calls.
 """
 
 import argparse
+import datetime
 import json
 import sys
 from pathlib import Path
 
 import utils
+
+STATUTE_EXPIRY_DAYS = 365
 
 
 # Re-export canonical slugify for convenience
@@ -155,14 +158,23 @@ def read_document_metadata(document_dir):
     return info
 
 
-def search_keyword(law_db, keyword, topic=None):
-    """Search documents by keyword in title and abstract. Case-insensitive."""
+def search_keyword(law_db, keyword, topic=None, exclude_expired=False):
+    """Search documents by keyword in title. Case-insensitive.
+
+    When *exclude_expired* is True, documents whose ``access_date`` is more
+    than ``STATUTE_EXPIRY_DAYS`` old are omitted.  Documents with a missing
+    or unparseable ``access_date`` are retained (err on the side of showing
+    results).
+    """
     documents_dir = law_db / "documents"
     search_root = documents_dir / topic if topic else documents_dir
     if not search_root.is_dir():
         return []
 
     keyword_lower = keyword.lower()
+    cutoff = None
+    if exclude_expired:
+        cutoff = datetime.date.today() - datetime.timedelta(days=STATUTE_EXPIRY_DAYS)
     matches = []
 
     for meta_path in sorted(search_root.rglob("metadata.json")):
@@ -170,6 +182,16 @@ def search_keyword(law_db, keyword, topic=None):
         info, _ = _document_metadata(document_dir)
         if info is None or "error" in info:
             continue
+
+        if exclude_expired and cutoff is not None:
+            access_str = (info.get("access_date") or "").strip()
+            if access_str:
+                try:
+                    access_date = datetime.date.fromisoformat(access_str)
+                    if access_date < cutoff:
+                        continue
+                except (ValueError, TypeError):
+                    pass  # unparseable date → retain
 
         title = str(info.get("title", "")).lower()
         match_field = []
@@ -182,23 +204,6 @@ def search_keyword(law_db, keyword, topic=None):
             end = min(len(title), idx + len(keyword_lower) + 30)
             match_snippet = ("..." if start > 0 else "") + str(info.get("title", ""))[start:end] + ("..." if end < len(title) else "")
 
-        abstract_path = document_dir / "abstract.txt"
-        abstract = ""
-        abstract_lower = ""
-        if abstract_path.is_file():
-            try:
-                abstract = abstract_path.read_text(encoding="utf-8")
-                abstract_lower = abstract.lower()
-            except OSError:
-                pass
-        if keyword_lower in abstract_lower:
-            match_field.append("abstract")
-            if not match_snippet:
-                idx = abstract_lower.index(keyword_lower)
-                start = max(0, idx - 40)
-                end = min(len(abstract), idx + len(keyword_lower) + 40)
-                match_snippet = ("..." if start > 0 else "") + abstract[start:end] + ("..." if end < len(abstract) else "")
-
         if match_field:
             matches.append({
                 "folder": str(document_dir.relative_to(law_db)),
@@ -210,17 +215,6 @@ def search_keyword(law_db, keyword, topic=None):
             })
 
     return matches
-
-
-def read_document_abstract(document_dir):
-    """Read the abstract.txt from a document directory."""
-    abstract_path = Path(document_dir) / "abstract.txt"
-    if not abstract_path.is_file():
-        return "Abstract file not found."
-    try:
-        return abstract_path.read_text(encoding="utf-8").strip()
-    except OSError as exc:
-        return f"Could not read abstract: {exc}"
 
 
 def read_document_fulltext(document_dir):
@@ -357,11 +351,6 @@ def _format_text(result, command):
             f"URL:        {result.get('url', 'N/A')}",
             f"Accessed:   {result.get('access_date', 'N/A')}",
         ]
-        abstract = result.get("abstract")
-        if abstract:
-            lines.append("")
-            lines.append("Abstract:")
-            lines.extend(utils.wrap_text(abstract))
         fulltext = result.get("fulltext")
         if fulltext:
             lines.append("")
@@ -445,11 +434,6 @@ def parse_args():
         help="Optional topic scope for --search-keyword or --search-searches.",
     )
     parser.add_argument(
-        "--show-abstract",
-        action="store_true",
-        help="Include abstract text with --read-metadata output.",
-    )
-    parser.add_argument(
         "--show-fulltext",
         action="store_true",
         help="Include full text (source.md) with --read-metadata output.",
@@ -458,6 +442,11 @@ def parse_args():
         "--summary",
         action="store_true",
         help="Compact output for --search-keyword (identifiers and titles only, no snippets).",
+    )
+    parser.add_argument(
+        "--exclude-expired",
+        action="store_true",
+        help="With --search-keyword: omit documents whose access_date is older than 365 days. Missing/unparseable dates are retained.",
     )
 
     return parser.parse_args()
@@ -486,15 +475,13 @@ def main():
     elif args.read_metadata:
         command = "read-metadata"
         result = read_document_metadata(args.read_metadata)
-        if args.show_abstract and "error" not in result:
-            result["abstract"] = read_document_abstract(args.read_metadata)
         if args.show_fulltext and "error" not in result:
             fulltext = read_document_fulltext(args.read_metadata)
             if fulltext is not None:
                 result["fulltext"] = fulltext
     elif args.search_keyword:
         command = "search-keyword"
-        matches = search_keyword(law_db, args.search_keyword, topic=args.search_topic)
+        matches = search_keyword(law_db, args.search_keyword, topic=args.search_topic, exclude_expired=args.exclude_expired)
         result = {
             "keyword": args.search_keyword,
             "match_count": len(matches),

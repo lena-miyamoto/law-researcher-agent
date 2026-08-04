@@ -98,6 +98,17 @@ querying, or analyzing documents from the archive:
 - Integrity check runs automatically after every archival operation.
   Errors block completion (exit code 1) and must be fixed immediately.
 
+### Statutory Expiration
+
+Statutes (laws, regulations, directives) cached in `documents/` expire after one year.
+Use `--exclude-expired` with `law-db-query --search-keyword` to filter them out.
+Expired statutes should be re-fetched from the official source.
+
+- Expiration is based on `access_date` in the document's `metadata.json`.
+- Documents with missing or unparseable `access_date` are treated as non-expired.
+- Case law and court judgments are **not** subject to expiration — they are fixed once decided.
+- The expiration window is 365 days from `access_date`.
+
 ## During-Session / Real-Time Use
 
 When operating in a live session, only **read-only, local, no-network** commands are
@@ -147,7 +158,7 @@ common operations.
 | Check document     | `uv run law-db-query --check-document '<ID>'`                                                    |
 | Read metadata      | `uv run law-db-query --read-metadata '<path>'`                                                   |
 | Read + abstract    | `uv run law-db-query --read-metadata '<path>' --show-abstract`                                   |
-| Keyword search     | `uv run law-db-query --search-keyword '<term>'`                                                  |
+| Keyword search     | `uv run law-db-query --search-keyword '<term>' --exclude-expired`                                |
 | Scoped keyword     | `uv run law-db-query --search-keyword '<term>' --search-topic '<slug>'`                          |
 | Recent documents   | `uv run law-db-query --recent <N>`                                                               |
 | Search searches    | `uv run law-db-query --search-searches '<term>'`                                                 |
