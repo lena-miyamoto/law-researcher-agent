@@ -4,24 +4,28 @@
   "allow": {
     "WebFetch": [
       "^https://eur-lex\\.europa\\.eu(/|$)",
-      "^https://www\\.ris\\.bka\\.gv\\.at(/|$)",
+      "^https://([a-zA-Z0-9_-]+\\.)*bka\\.gv\\.at(/|$)",
       "^https://www\\.fma\\.gv\\.at(/|$)",
       "^https://www\\.durchblicker\\.at(/|$)",
       "^https://www\\.versicherungsverband\\.at(/|$)",
       "^https://www\\.eiopa\\.europa\\.eu(/|$)",
       "^https://www\\.sozialversicherung\\.at(/|$)",
-      "^https://www\\.gv\\.at(/|$)"
+      "^https://www\\.jusline\\.at(/|$)",
+      "^https://([a-zA-Z0-9_-]+\\.)*bmf\\.gv\\.at(/|$)",
+      "^https://www\\.sozialministerium\\.gv\\.at(/|$)"
     ],
-    "Skill": ["^compress-skill$", "^explain-law$", "^law-db$", "^optimize-repo$"],
+    "Skill": ["^ask-law$", "^compress-skill$", "^explain-law$", "^law-db$", "^optimize-repo$"],
     "Bash": [
       "^curl -s [\"']https://eur-lex\\.europa\\.eu/",
-      "^curl -s [\"']https://www\\.ris\\.bka\\.gv\\.at/",
+      "^curl -s [\"']https://([a-zA-Z0-9_-]+\\.)*bka\\.gv\\.at/",
       "^curl -s [\"']https://www\\.fma\\.gv\\.at/",
       "^curl -s [\"']https://www\\.durchblicker\\.at/",
       "^curl -s [\"']https://www\\.versicherungsverband\\.at/",
       "^curl -s [\"']https://www\\.eiopa\\.europa\\.eu/",
       "^curl -s [\"']https://www\\.sozialversicherung\\.at/",
-      "^curl -s [\"']https://www\\.gv\\.at/",
+      "^curl -s [\"']https://www\\.jusline\\.at/",
+      "^curl -s [\"']https://([a-zA-Z0-9_-]+\\.)*bmf\\.gv\\.at/",
+      "^curl -s [\"']https://www\\.sozialministerium\\.gv\\.at/",
       "^uv run law-db\\s",
       "^uv run law-db-contract\\s",
       "^uv run law-db-integrity-check\\s",
