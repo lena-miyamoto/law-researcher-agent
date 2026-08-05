@@ -8,6 +8,7 @@ compliance, insurance contract review, and market comparison.
 
 | Skill            | User-invocable | Purpose                                                                                                                        |
 | ---------------- | :------------: | ------------------------------------------------------------------------------------------------------------------------------ |
+| `ask-law`        |      Yes       | Answer a free-form legal question about Austrian or EU law: research the question, provide a source-backed answer with authority assessment and risk analysis, then answer follow-up questions interactively |
 | `explain-law`    |      Yes       | Explain an Austrian or EU law or case: fetch the official text, archive it, summarize key points, answer follow-up questions   |
 | `law-db`         |       No       | Access the law-db archive — search, query, archive, validate. Every read/write to the local archive must go through this skill |
 | `compress-skill` |      Yes       | Compress instruction `.md` files to cut token cost while keeping meaning exact                                                 |
@@ -21,6 +22,7 @@ Source of truth: `.claude/skills/<name>/SKILL.md`. `.github/skills/` are thin wr
 | ------------------ | ------------------------------------------------------------------------------------------------------ |
 | `law-researcher`   | Legal research — statutory interpretation, case law, commentary, regulatory compliance                 |
 | `insurance-broker` | Insurance contract analysis, AGB review, regulatory checks, market comparison (fiduciary duty to user) |
+| `tax-advisor`      | Tax document analysis, Austrian and EU tax law research, receipt categorization, deduction optimization (best-interest duty to user) |
 
 ## Prerequisites
 
