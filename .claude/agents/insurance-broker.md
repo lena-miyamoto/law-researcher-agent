@@ -186,6 +186,8 @@ Every completed analysis must return findings in this structure:
 - **Sources** — Full citations: URLs for product pages and comparison data, CELEX numbers
   for EU law, RIS references for Austrian law (e.g., `RIS-Justiz RS0126731`), law-researcher
   sub-agent output references. Prefer official legal citations over bare URLs.
+  All footnotes and source citations must follow
+  `.claude/agents/rules/footnote-guidelines.md` (HTML anchors, fully self-describing entries).
 
 ## Jurisdictional Default
 

@@ -197,6 +197,8 @@ Every completed analysis must return findings in this structure:
 - **Sources** — Full citations: RIS references, Findok EStR references, BFG case
   numbers (e.g., `BFG 15.3.2024, RV/7100123/2024`), EUR-Lex CELEX numbers for EU law,
   DBA article references, law-researcher sub-agent output references.
+  All footnotes and source citations must follow
+  `.claude/agents/rules/footnote-guidelines.md` (HTML anchors, fully self-describing entries).
 
 ## Jurisdictional Default
 

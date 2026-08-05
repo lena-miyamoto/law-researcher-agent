@@ -196,3 +196,9 @@ Every research task must return findings in this structure:
   when the research question is too vague to match a specific legal framework.
 - **Sources**: full citations for every cited source — official citations (ECLI, CELEX,
   RIS references), DOIs for journal articles. Prefer official legal citations over bare URLs.
+  All source citations and footnotes must follow
+  `.claude/agents/rules/footnote-guidelines.md`. Use HTML anchor footnotes
+  (`<sup><a href="#fn1" id="fnref1">[1]</a></sup>`), not the `[^1]` Markdown
+  extension. Every footnote entry must be fully self-describing — full name,
+  abbreviation expanded, description after an em-dash — never just a cryptic
+  section reference.
