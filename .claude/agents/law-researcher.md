@@ -162,9 +162,9 @@ independent questions.
   `.claude/agents/rules/ris-guidelines.md`.
 - **Austrian legal sources (private): JUSLINE** (`jusline.at`, private platform
   by ADVOKAT) offers free consolidated Austrian federal law texts with a
-  user-friendly interface, plus case law (OGH, VwGH, VfGH). Currently offline
-  (server problem, August 2026). For rechtsverbindliche (legally binding)
-  research, always prefer RIS. Source reference:
+  user-friendly HTML interface (one page per paragraph), plus case law (OGH,
+  VwGH, VfGH). Individual paragraphs available as PDF. For rechtsverbindliche
+  (legally binding) research, always prefer RIS. Source reference:
   `.claude/agents/rules/jusline-at-guidelines.md`.
 - **EU legal sources**: EUR-Lex (`eur-lex.europa.eu`, official EU portal) provides free
   access to EU legislation, case law, preparatory documents, and the Official Journal in
